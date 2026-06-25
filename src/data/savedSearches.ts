@@ -13,6 +13,8 @@ export interface SavedSearchFilters {
   nationalities: string[]
   languages: string[]
   query: string
+  /** null = no filter; 'reviewed' = has at least one note; 'not_reviewed' = new, never rated */
+  reviewStatus: 'reviewed' | 'not_reviewed' | null
 }
 
 export interface SavedSearch {

@@ -78,6 +78,7 @@ const EMPTY_FILTERS: SavedSearchFilters = {
   nationalities: [],
   languages: [],
   query: '',
+  reviewStatus: null,
 }
 
 function activeFilterCount(f: SavedSearchFilters): number {
@@ -90,7 +91,8 @@ function activeFilterCount(f: SavedSearchFilters): number {
     f.nationalities.length +
     f.languages.length +
     (f.scoreMin != null || f.scoreMax != null ? 1 : 0) +
-    (f.query.trim() ? 1 : 0)
+    (f.query.trim() ? 1 : 0) +
+    (f.reviewStatus != null ? 1 : 0)
   )
 }
 
@@ -150,6 +152,8 @@ export function SelectionConsole() {
         return false
       if (filters.nationalities.length > 0 && (!c.nationality || !filters.nationalities.includes(c.nationality)))
         return false
+      if (filters.reviewStatus === 'reviewed' && c.good === 0 && c.maybe === 0 && c.no === 0) return false
+      if (filters.reviewStatus === 'not_reviewed' && c.status !== 'new') return false
       if (filters.languages.length > 0 && !(c.languages ?? []).some((l) => filters.languages.includes(l)))
         return false
       if (q) {
@@ -598,6 +602,31 @@ function FilterBar({
             selected={filters.signals}
             onToggle={(v) => toggleIn('signals', v)}
           />
+        </FilterDropdown>
+
+        <FilterDropdown label="Review status" count={filters.reviewStatus != null ? 1 : 0}>
+          <div className="flex flex-col gap-0.5 p-1">
+            {([
+              { value: null,           label: 'All candidates' },
+              { value: 'reviewed',     label: 'Reviewed — has a note' },
+              { value: 'not_reviewed', label: 'Not reviewed — new' },
+            ] as const).map(({ value, label }) => (
+              <button
+                key={String(value)}
+                onClick={() => onFilters({ ...filters, reviewStatus: value })}
+                className={cn(
+                  'flex items-center gap-2 rounded-btn px-3 py-2 text-left text-sm transition-colors hover:bg-ink/5',
+                  filters.reviewStatus === value ? 'font-semibold text-ink' : 'text-muted',
+                )}
+              >
+                <span className={cn(
+                  'h-2 w-2 rounded-full border',
+                  filters.reviewStatus === value ? 'border-ink bg-ink' : 'border-muted bg-transparent',
+                )} />
+                {label}
+              </button>
+            ))}
+          </div>
         </FilterDropdown>
 
         <FilterDropdown label="Score" count={filters.scoreMin != null || filters.scoreMax != null ? 1 : 0}>
