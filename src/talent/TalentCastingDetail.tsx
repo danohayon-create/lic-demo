@@ -290,7 +290,7 @@ function RoleCard({
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-ink">{role.name}</h3>
             <Tag tone={role.type === 'Lead' ? 'gold' : 'cream'}>{role.type}</Tag>
-            {isClosed && <Tag tone="muted">Complet</Tag>}
+            {isClosed && <Tag tone="neutral">Complet</Tag>}
           </div>
           <div className="flex flex-wrap gap-3 text-sm text-muted">
             {role.pay && (

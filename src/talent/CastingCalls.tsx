@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Clock, MapPin, Video, Zap } from 'lucide-react'
-import { Card, Tag, Button } from '@/components/ui'
+import { Card, Button } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { discoverCastings, mayaProfile, type DiscoverCasting } from '@/data'
 

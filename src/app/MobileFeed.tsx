@@ -5,13 +5,6 @@ import { feedPosts } from '@/data/feed'
 import { useToast } from '@/components/Toast'
 import type { FeedPost } from '@/data/types'
 
-const KIND_BADGE: Record<string, string> = {
-  casting: 'Casting call',
-  selftape: 'Self-tape',
-  news: 'Industry news',
-  training: 'Training',
-  update: 'Update',
-}
 
 export function MobileFeed() {
   return (
