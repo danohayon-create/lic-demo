@@ -47,8 +47,8 @@ export function Launcher() {
             The performance layer of global casting
           </h1>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-muted">
-            Choisissez une surface pour explorer la démo. Tout est navigable, avec des
-            données factices crédibles.
+            Choose a surface to explore the demo. Everything is navigable with realistic
+            sample data.
           </p>
         </div>
 
@@ -56,22 +56,22 @@ export function Launcher() {
           <EntryCard
             icon={<Monitor className="h-5 w-5" />}
             tag="Web · desktop"
-            title="Entrer côté Production"
-            desc="Dashboard, recherche talents, review des self-tapes."
+            title="Production side"
+            desc="Dashboard, talent search, self-tape review & casting console."
             onClick={() => handleEntry('/studio')}
           />
           <EntryCard
             icon={<Smartphone className="h-5 w-5" />}
             tag="Mobile · app"
-            title="Entrer côté Talent"
-            desc="Casting calls, Snap apply, self-tape, auditions."
+            title="Talent mobile app"
+            desc="Casting calls, self-tape recording, auditions & feed."
             onClick={() => handleEntry('/app')}
           />
           <EntryCard
             icon={<UserSquare2 className="h-5 w-5" />}
             tag="Web · desktop"
-            title="Espace Talent (bureau)"
-            desc="Casting calls, auditions, messages, notifications et fiche profil façon LinkedIn."
+            title="Talent space"
+            desc="Casting calls, auditions, messages, notifications & LinkedIn-style profile."
             onClick={() => handleEntry('/talent')}
           />
         </div>
@@ -82,7 +82,7 @@ export function Launcher() {
             className="inline-flex items-center gap-1.5 text-sm font-medium text-link hover:underline"
           >
             <Play className="h-4 w-4" />
-            Voir le pitch
+            View pitch
           </Link>
         </div>
       </motion.div>
@@ -119,7 +119,7 @@ function EntryCard({
         <p className="mt-1 text-sm text-muted">{desc}</p>
       </div>
       <span className="mt-auto inline-flex items-center gap-1 text-sm font-semibold text-ink">
-        Ouvrir
+        Open
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
       </span>
     </motion.button>

@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react'
 
+/** Portal target ID — overlays rendered via createPortal land here, clipped by the phone screen. */
+export const PHONE_OVERLAY_ID = 'phone-screen-overlay'
+
 type PhoneFrameProps = {
   children: ReactNode
 }
@@ -25,6 +28,8 @@ export function PhoneFrame({ children }: PhoneFrameProps) {
           <div className="pointer-events-none absolute left-1/2 top-2 z-30 h-7 w-32 -translate-x-1/2 rounded-full bg-ink" />
           {/* scrollable content area */}
           <div className="no-scrollbar h-full w-full overflow-y-auto">{children}</div>
+          {/* Portal target for in-phone overlays (interstitials, bottom sheets) */}
+          <div id={PHONE_OVERLAY_ID} className="pointer-events-none absolute inset-0 z-20" />
         </div>
       </div>
     </div>

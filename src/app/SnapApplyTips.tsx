@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
 import { X, ChevronLeft, ChevronRight, Camera } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -23,6 +23,8 @@ const SWIPE_VELOCITY = 500
 
 export function SnapApplyTips() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const nextPath = searchParams.get('next') ?? '/app/selftape/evermore'
   const [step, setStep] = useState(0) // 0..9 = tips, 10 = ready screen
   const [dir, setDir] = useState<1 | -1>(1)
 
@@ -109,7 +111,7 @@ export function SnapApplyTips() {
               </p>
             </div>
             <button
-              onClick={() => navigate('/app/selftape/evermore', { replace: true })}
+              onClick={() => navigate(nextPath, { replace: true })}
               className="flex w-full max-w-[260px] items-center justify-center gap-2 rounded-btn bg-cream py-3.5 text-sm font-bold text-ink"
             >
               <Camera className="h-4 w-4" />

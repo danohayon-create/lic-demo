@@ -270,6 +270,8 @@ export interface Role {
   /** Casting director's brief (shown with an AI-summary affordance). */
   castingNotes?: string
   sidesId?: ID
+  /** For closed castings: the talent who was selected for this role. */
+  selectedTalent?: { name: string; avatar: string }
 }
 
 // ── Sides (script excerpt) ───────────────────────────────────────────────────

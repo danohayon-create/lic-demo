@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
-import { ArrowLeft, Share2, MoreHorizontal, Play, Zap, Sparkles, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Share2, MoreHorizontal, Play, Zap, Sparkles, CheckCircle2, Camera, BookOpen } from 'lucide-react'
 import { Card, Tag } from '@/components/ui'
+import { PHONE_OVERLAY_ID } from '@/components/PhoneFrame'
 import { useToast } from '@/components/Toast'
 import { asset } from '@/lib/asset'
 import {
@@ -17,6 +19,7 @@ export function CastingDetail() {
   const navigate = useNavigate()
   const toast = useToast()
   const casting = discoverCastingsById[id]
+  const [tipsOpen, setTipsOpen] = useState(false)
 
   if (!casting) return <Navigate to="/app" replace />
 
@@ -115,13 +118,22 @@ export function CastingDetail() {
       ) : (
         <div className="sticky bottom-0 -mx-4 mt-auto bg-gradient-to-t from-paper via-paper to-transparent px-4 pb-4 pt-3">
           <button
-            onClick={() => navigate(`/app/selftape/${id}`)}
+            onClick={() => setTipsOpen(true)}
             className="flex w-full items-center justify-center gap-2 rounded-btn bg-cream py-3.5 text-sm font-bold text-ink shadow-sm transition-transform active:scale-[0.99]"
           >
             <Zap className="h-4 w-4" />
             Self Tape your audition
           </button>
         </div>
+      )}
+
+      {/* Self-tape interstitial */}
+      {tipsOpen && (
+        <SelfTapeInterstitial
+          onTips={() => navigate(`/app/tips?next=/app/selftape/${id}`)}
+          onRecord={() => navigate(`/app/selftape/${id}`)}
+          onClose={() => setTipsOpen(false)}
+        />
       )}
     </div>
   )
@@ -177,6 +189,71 @@ function Info({ label, value }: { label: string; value: string }) {
       <span className="text-label font-semibold uppercase tracking-label text-muted">{label}</span>
       <span className="text-sm font-semibold text-ink">{value}</span>
     </div>
+  )
+}
+
+/* ── Self-tape interstitial bottom sheet ────────────────────────────────────── */
+
+function SelfTapeInterstitial({
+  onTips,
+  onRecord,
+  onClose,
+}: {
+  onTips: () => void
+  onRecord: () => void
+  onClose: () => void
+}) {
+  const target = document.getElementById(PHONE_OVERLAY_ID)
+  if (!target) return null
+
+  return createPortal(
+    <div className="pointer-events-auto absolute inset-0 flex flex-col justify-end" onClick={onClose}>
+      {/* backdrop */}
+      <div className="absolute inset-0 bg-ink/40 backdrop-blur-sm" />
+
+      {/* sheet */}
+      <div
+        className="relative flex flex-col gap-4 rounded-t-2xl bg-card px-5 pb-10 pt-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* drag handle */}
+        <div className="mx-auto h-1 w-10 rounded-full bg-line" />
+
+        <div className="text-center">
+          <h3 className="text-base font-bold text-ink">Prêt à tourner ?</h3>
+          <p className="mt-1 text-sm text-muted">
+            Découvrez nos 10 conseils pour un self-tape réussi, ou lancez-vous directement.
+          </p>
+        </div>
+
+        <button
+          onClick={onTips}
+          className="flex items-center gap-4 rounded-card border border-line bg-paper p-4 text-left transition-colors hover:bg-ink/5 active:scale-[0.99]"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink text-paper">
+            <BookOpen className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="font-semibold text-ink">Voir les conseils</p>
+            <p className="text-xs text-muted">10 tips pour un self-tape pro</p>
+          </div>
+        </button>
+
+        <button
+          onClick={onRecord}
+          className="flex items-center gap-4 rounded-card bg-cream p-4 text-left transition-colors hover:brightness-95 active:scale-[0.99]"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink/10 text-ink">
+            <Camera className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="font-semibold text-ink">Enregistrer maintenant</p>
+            <p className="text-xs text-muted/70">Je connais déjà les tips</p>
+          </div>
+        </button>
+      </div>
+    </div>,
+    target,
   )
 }
 

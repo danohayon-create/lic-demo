@@ -11,29 +11,29 @@ import { asset } from '@/lib/asset'
 const TAPE_TYPES = [
   {
     id: 'scene',
-    label: 'Scène avec script',
-    desc: 'Jeu sur le script fourni par la production',
+    label: 'Scene with script',
+    desc: 'Perform the script provided by the production',
     icon: BookOpen,
     color: 'bg-gold/15 text-[#8A6D00]',
   },
   {
     id: 'monologue',
     label: 'Monologue',
-    desc: 'Texte de votre choix, 1 à 2 minutes',
+    desc: 'Text of your choice, 1 to 2 minutes',
     icon: Mic,
     color: 'bg-blue-50 text-blue-700',
   },
   {
     id: 'improv',
     label: 'Improvisation',
-    desc: 'Réaction libre à une situation donnée',
+    desc: 'Free reaction to a given situation',
     icon: Zap,
     color: 'bg-signal-good/15 text-signal-good',
   },
   {
     id: 'fullbody',
-    label: 'Plan entier',
-    desc: 'Silhouette + déplacement, sans texte',
+    label: 'Full body shot',
+    desc: 'Silhouette + movement, no dialogue',
     icon: PersonStanding,
     color: 'bg-ink/8 text-ink',
   },
@@ -104,7 +104,7 @@ function TypeSelection({
           Self-tape
         </p>
         <h2 className="mb-6 text-center text-xl font-bold">
-          Quel type d'enregistrement ?
+          What type of recording?
         </h2>
 
         <div className="flex flex-col gap-3">
@@ -266,7 +266,7 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
       {/* controls */}
       <div className="flex items-center justify-between px-8 pb-10 pt-3">
         <button
-          onClick={() => toast('Reframe — bientôt disponible')}
+          onClick={() => toast('Reframe — coming soon')}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white/80"
         >
           <Crop className="h-5 w-5" />
@@ -296,24 +296,24 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
             <Check className="h-8 w-8" />
           </span>
           <div>
-            <h2 className="text-xl font-bold">Audition enregistrée</h2>
+            <h2 className="text-xl font-bold">Audition recorded</h2>
             <p className="mt-1 text-sm text-white/70">
               {casting.title} · {casting.roleName} · {timecode}
             </p>
           </div>
           <button
-            onClick={() => { toast('Audition envoyée'); navigate('/app/auditions') }}
+            onClick={() => { toast('Audition sent'); navigate('/app/auditions') }}
             className="flex w-full max-w-[240px] items-center justify-center gap-2 rounded-btn bg-cream py-3 text-sm font-bold text-ink"
           >
             <Send className="h-4 w-4" />
-            Envoyer
+            Send
           </button>
           <button
             onClick={() => { setDone(false); setElapsed(0) }}
             className="flex items-center gap-1.5 text-sm font-medium text-white/70 hover:text-white"
           >
             <RotateCcw className="h-4 w-4" />
-            Refaire la prise
+            Retake
           </button>
         </div>
       )}

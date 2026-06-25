@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -47,7 +47,6 @@ import { asset } from '@/lib/asset'
 
 type ViewMode = 'kanban' | 'list' | 'wall'
 
-const SINGLE_OCCUPANT: CandidateStatus[] = ['offer', 'cast']
 
 const COLUMN_TONE: Partial<Record<CandidateStatus, string>> = {
   new: 'bg-gray-200/70 ring-gray-400/30',
@@ -167,7 +166,8 @@ export function SelectionConsole() {
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [overColumn, setOverColumn] = useState<CandidateStatus | null>(null)
 
-  const [view, setView] = useState<ViewMode>('kanban')
+  const initialView = (searchParams.get('view') as ViewMode | null) ?? 'list'
+  const [view, setView] = useState<ViewMode>(initialView)
   const [columnFocus, setColumnFocus] = useState<CandidateStatus | null>(null)
 
   const [selectMode, setSelectMode] = useState(false)
@@ -239,7 +239,7 @@ export function SelectionConsole() {
     setColumnFocus(null)
     setSelectedIds(new Set())
     setSelectMode(false)
-    setView('kanban')
+    setView('list')
     navigate(`/studio/selection?p=${newId}`)
   }
 
@@ -297,14 +297,14 @@ export function SelectionConsole() {
               {project.type} · {project.company} · {project.genre}
             </span>
             <h2 className="mt-0.5 text-xl font-bold tracking-tight text-ink">{project.title}</h2>
-            <p className="mt-1 text-sm italic leading-relaxed text-muted">"{LOGLINE}"</p>
+            <p className="mt-1 text-sm italic leading-relaxed text-muted">"{project.synopsis ?? LOGLINE}"</p>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 border-t border-line pt-4 sm:grid-cols-4">
           <StatCell value={roles.length} label="Roles" />
-          <StatCell value={allCandidates.length} label="Submissions" />
-          <StatCell value={shortlistCount} label="Shortlist" />
-          <StatCell value={bookedCount} label="Booked" />
+          <StatCell value={project.kpis?.submissions.total ?? allCandidates.length} label="Submissions" />
+          <StatCell value={project.kpis?.shortlist.total ?? shortlistCount} label="Shortlist" />
+          <StatCell value={project.kpis?.booked ?? bookedCount} label="Booked" />
         </div>
       </Card>
 
@@ -324,8 +324,8 @@ export function SelectionConsole() {
       {/* View toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1 rounded-btn bg-paper p-1 ring-1 ring-line">
-          <ViewTab active={view === 'kanban'} icon={<LayoutGrid className="h-3.5 w-3.5" />} label="Kanban" onClick={() => setView('kanban')} />
           <ViewTab active={view === 'list'} icon={<List className="h-3.5 w-3.5" />} label="List" onClick={() => { setView('list'); setColumnFocus(null) }} />
+          <ViewTab active={view === 'kanban'} icon={<LayoutGrid className="h-3.5 w-3.5" />} label="Talent Flow" onClick={() => setView('kanban')} />
           <ViewTab active={view === 'wall'} icon={<Grid2x2 className="h-3.5 w-3.5" />} label="Wall" onClick={() => { setView('wall'); setColumnFocus(null) }} />
         </div>
 
@@ -346,7 +346,7 @@ export function SelectionConsole() {
         {selectMode
           ? 'Click cards to select them, then change their status or message them in bulk.'
           : view === 'kanban'
-            ? 'Drag a candidate card between columns to move them through the pipeline. New submissions must be reviewed before they can move. Offer and Cast each hold one profile.'
+            ? 'Drag a candidate card between columns to move them through the pipeline. New submissions must be reviewed before they can move.'
             : view === 'list'
               ? 'Double-click a row to watch the review.'
               : 'Each role shows its current pick — Select to open the list and choose a candidate.'}
@@ -368,7 +368,6 @@ export function SelectionConsole() {
         <div className="flex gap-3 overflow-x-auto pb-2">
           {BOARD_COLUMNS.map((col) => {
             const colCandidates = filteredCandidates.filter((c) => c.status === col)
-            const capped = SINGLE_OCCUPANT.includes(col)
             const isOver = overColumn === col
             const locked = LOCKED_COLUMNS.has(col)
             return (
@@ -389,7 +388,7 @@ export function SelectionConsole() {
                   </span>
                   <div className="flex items-center gap-1">
                     <span className="rounded-full bg-ink/10 px-1.5 py-0.5 text-[10px] font-bold text-ink">
-                      {colCandidates.length}{capped ? '/1' : ''}
+                      {colCandidates.length}
                     </span>
                     {colCandidates.length > 0 && (
                       <>
@@ -470,11 +469,7 @@ export function SelectionConsole() {
         <WallView
           roles={roles}
           allCandidates={allCandidates}
-          onSelect={(roleId) => {
-            setFilters((f) => ({ ...f, roleIds: [roleId] }))
-            setView('list')
-            setColumnFocus(null)
-          }}
+          onPlay={(c) => setWatchQueue([c])}
         />
       )}
 
@@ -512,7 +507,6 @@ export function SelectionConsole() {
               className="flex items-center justify-between rounded-btn border border-line px-3 py-2 text-sm font-medium text-ink hover:bg-paper"
             >
               {BOARD_COLUMN_LABELS[col]}
-              {SINGLE_OCCUPANT.includes(col) && <span className="text-xs text-muted">single occupant</span>}
             </button>
           ))}
         </div>
@@ -1129,59 +1123,235 @@ function StatusEditor({ candidate }: { candidate: Candidate }) {
 function WallView({
   roles,
   allCandidates,
-  onSelect,
+  onPlay,
 }: {
   roles: Role[]
   allCandidates: Candidate[]
-  onSelect: (roleId: string) => void
+  onPlay: (candidate: Candidate) => void
 }) {
-  return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-      {roles.map((role) => {
-        const candidates = allCandidates.filter((c) => c.roleId === role.id)
-        const chosen = candidates.find((c) => c.status === 'cast') ?? candidates.find((c) => c.status === 'offer')
-        const shortlistRank = BOARD_COLUMNS.indexOf('shortlisted')
-        const shortlisted = candidates.filter((c) => BOARD_COLUMNS.indexOf(c.status) >= shortlistRank).length
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [focusRoleId, setFocusRoleId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
+  const roleRefs = useRef<Record<string, HTMLElement | null>>({})
 
-        return (
-          <Card key={role.id} flush className="flex flex-col overflow-hidden">
-            <div className="flex h-32 items-center justify-center bg-paper">
-              {chosen ? (
-                <Avatar src={chosen.avatar} name={chosen.name} size="xl" />
-              ) : (
-                <UserRound className="h-10 w-10 text-line" />
-              )}
-            </div>
-            <div className="flex flex-1 flex-col gap-2 p-4">
-              <p className="font-bold text-ink">{role.name}</p>
-              {chosen ? (
+  const openPicker = (roleId: string) => {
+    setFocusRoleId(roleId)
+    setPickerOpen(true)
+    setSearchQuery('')
+    setTimeout(() => {
+      searchRef.current?.focus()
+      roleRefs.current[roleId]?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    }, 80)
+  }
+
+  const closePicker = () => {
+    setPickerOpen(false)
+    setFocusRoleId(null)
+    setSearchQuery('')
+  }
+
+  const removeFromWall = (candidateId: string) => {
+    moveCandidate(candidateId, 'shortlisted')
+  }
+
+  return (
+    <>
+      {/* ── Wall grid ── */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        {roles.map((role) => {
+          const candidates = allCandidates.filter((c) => c.roleId === role.id)
+          const chosen = candidates.filter((c) => c.status === 'cast' || c.status === 'offer')
+          const shortlistRank = BOARD_COLUMNS.indexOf('shortlisted')
+          const shortlisted = candidates.filter((c) => BOARD_COLUMNS.indexOf(c.status) >= shortlistRank).length
+
+          return (
+            <Card key={role.id} flush className="flex flex-col overflow-hidden">
+              {chosen.length > 0 ? (
                 <>
-                  <p className="text-sm text-ink">{chosen.name}</p>
-                  <div className="mt-auto flex items-center justify-between">
-                    <span
-                      className={cn(
-                        'rounded-full px-2 py-0.5 text-[11px] font-bold',
-                        chosen.status === 'cast' ? 'bg-signal-good-bg text-signal-good' : 'bg-gold/15 text-[#8A6D00]',
-                      )}
+                  <div className={cn('grid', chosen.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+                    {chosen.map((c) => (
+                      <div key={c.id} className="group relative aspect-square overflow-hidden bg-paper">
+                        {c.avatar ? (
+                          <img src={c.avatar} alt={c.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <Avatar name={c.name} size="xl" />
+                          </div>
+                        )}
+                        {/* Play overlay */}
+                        <button
+                          onClick={() => onPlay(c)}
+                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
+                        >
+                          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-ink shadow-lg">
+                            <Play className="ml-0.5 h-4 w-4" />
+                          </span>
+                        </button>
+                        {/* Trash button */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeFromWall(c.id) }}
+                          className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-signal-no/80"
+                          title="Remove from wall"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-1 flex-col gap-1.5 p-3">
+                    <p className="text-xs font-bold uppercase tracking-label text-muted">{role.name}</p>
+                    {chosen.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between gap-2">
+                        <p className="truncate text-sm font-semibold text-ink">{c.name}</p>
+                        <span
+                          className={cn(
+                            'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold',
+                            c.status === 'cast' ? 'bg-signal-good-bg text-signal-good' : 'bg-gold/15 text-[#8A6D00]',
+                          )}
+                        >
+                          {c.status === 'cast' ? 'Cast' : 'Offer'}
+                        </span>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => openPicker(role.id)}
+                      className="mt-1 text-left text-xs font-medium text-link hover:underline"
                     >
-                      {chosen.status === 'cast' ? 'Cast' : 'Offer'}
-                    </span>
-                    <span className="text-sm font-bold text-match">{candidateScore(chosen)}</span>
+                      + Add another
+                    </button>
                   </div>
                 </>
               ) : (
                 <>
-                  <p className="text-xs text-muted">{candidates.length} submissions, {shortlisted} shortlisted</p>
-                  <Button size="sm" variant="secondary" className="mt-auto" onClick={() => onSelect(role.id)}>
-                    Select
-                  </Button>
+                  <div className="flex h-32 items-center justify-center bg-paper">
+                    <UserRound className="h-10 w-10 text-line" />
+                  </div>
+                  <div className="flex flex-1 flex-col gap-2 p-4">
+                    <p className="font-bold text-ink">{role.name}</p>
+                    <p className="text-xs text-muted">{candidates.length} submissions · {shortlisted} shortlisted</p>
+                    <Button size="sm" variant="secondary" className="mt-auto" onClick={() => openPicker(role.id)}>
+                      Select
+                    </Button>
+                  </div>
                 </>
               )}
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* ── Full-screen candidate picker ── */}
+      {pickerOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-card">
+          {/* Header */}
+          <div className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={closePicker}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-ink/5 hover:text-ink"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <h2 className="text-base font-bold text-ink">Select a candidate</h2>
+              {focusRoleId && (
+                <span className="rounded-full bg-link/10 px-2.5 py-0.5 text-xs font-semibold text-link">
+                  {roles.find((r) => r.id === focusRoleId)?.name}
+                </span>
+              )}
             </div>
-          </Card>
-        )
-      })}
-    </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input
+                ref={searchRef}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name…"
+                className="h-9 w-60 rounded-full border border-line bg-paper pl-9 pr-4 text-sm outline-none focus:border-ink/30"
+              />
+            </div>
+          </div>
+
+          {/* Scrollable body — grouped by role */}
+          <div className="flex-1 overflow-y-auto px-6 py-6">
+            {roles.map((role) => {
+              const roleCandidates = allCandidates.filter((c) => {
+                if (c.roleId !== role.id) return false
+                if (c.status === 'new') return false
+                if (searchQuery) return c.name.toLowerCase().includes(searchQuery.toLowerCase())
+                return true
+              })
+              if (roleCandidates.length === 0) return null
+
+              return (
+                <div
+                  key={role.id}
+                  ref={(el) => { roleRefs.current[role.id] = el }}
+                  className="mb-8"
+                >
+                  <div className="mb-4 flex items-center gap-3">
+                    <h3 className="font-bold text-ink">{role.name}</h3>
+                    <span className="text-sm text-muted">{roleCandidates.length} candidate{roleCandidates.length !== 1 ? 's' : ''}</span>
+                    {role.id === focusRoleId && (
+                      <span className="rounded-full bg-link/10 px-2 py-0.5 text-[11px] font-semibold text-link">
+                        Selected role
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
+                    {roleCandidates.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => { moveCandidate(c.id, 'offer'); closePicker() }}
+                        className="group relative overflow-hidden rounded-card border border-transparent transition-all hover:border-link/40 hover:shadow-card-hover focus:outline-none focus:ring-2 focus:ring-link/40"
+                      >
+                        <div className="relative aspect-[3/4] w-full overflow-hidden bg-paper">
+                          {c.avatar ? (
+                            <img
+                              src={c.avatar}
+                              alt={c.name}
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-paper">
+                              <UserRound className="h-8 w-8 text-line" />
+                            </div>
+                          )}
+                          {/* Score badge */}
+                          <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                            {candidateScore(c)}
+                          </span>
+                          {/* Gradient + name overlay */}
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 pt-8">
+                            <p className="truncate text-left text-[11px] font-bold leading-tight text-white">{c.name}</p>
+                            <p className="truncate text-left text-[10px] leading-tight text-white/60">{role.name}</p>
+                          </div>
+                          {/* Hover check overlay */}
+                          <div className="absolute inset-0 flex items-center justify-center bg-link/20 opacity-0 transition-opacity group-hover:opacity-100">
+                            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-lg">
+                              <Check className="h-5 w-5 text-link" />
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+            {/* Empty state when search has no results */}
+            {roles.every((role) =>
+              allCandidates.filter((c) => c.roleId === role.id && c.status !== 'new' && (!searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()))).length === 0
+            ) && (
+              <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+                <UserRound className="h-12 w-12 text-line" />
+                <p className="text-sm font-semibold text-muted">No candidates match your search</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

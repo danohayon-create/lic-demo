@@ -6,17 +6,17 @@ import { cn } from '@/lib/cn'
 import { discoverCastings, mayaProfile, type DiscoverCasting } from '@/data'
 import { asset } from '@/lib/asset'
 
-const filters = ['Tous', 'En cours', 'Terminés', 'Film', 'TV']
+const filters = ['All', 'Ongoing', 'Closed', 'Film', 'TV']
 
 export function CastingCalls() {
-  const [filter, setFilter] = useState('Tous')
+  const [filter, setFilter] = useState('All')
 
   const ongoing = discoverCastings.filter((c) => c.status !== 'closed')
   const closed = discoverCastings.filter((c) => c.status === 'closed')
 
   const filtered = discoverCastings.filter((c) => {
-    if (filter === 'En cours') return c.status !== 'closed'
-    if (filter === 'Terminés') return c.status === 'closed'
+    if (filter === 'Ongoing') return c.status !== 'closed'
+    if (filter === 'Closed') return c.status === 'closed'
     if (filter === 'Film') return c.kind.toLowerCase().includes('film')
     if (filter === 'TV') return c.kind.toLowerCase().includes('tv') || c.kind.toLowerCase().includes('series')
     return true
@@ -27,7 +27,7 @@ export function CastingCalls() {
       <div>
         <h1 className="text-xl font-bold tracking-tight text-ink">Casting calls</h1>
         <p className="text-sm text-muted">
-          Hey {mayaProfile.name.split(' ')[0]} — {ongoing.length} castings en cours · {closed.length} terminés.
+          Hey {mayaProfile.name.split(' ')[0]} — {ongoing.length} ongoing · {closed.length} closed.
         </p>
       </div>
 
@@ -43,7 +43,7 @@ export function CastingCalls() {
                 active ? 'border-ink bg-ink text-white' : 'border-line bg-card text-muted hover:text-ink',
               )}
             >
-              {f === 'En cours' && <Zap className="h-3 w-3" />}
+              {f === 'Ongoing' && <Zap className="h-3 w-3" />}
               {f}
             </button>
           )
@@ -81,7 +81,7 @@ function CastingCard({ casting: c }: { casting: DiscoverCasting }) {
         <span
           className={cn(
             'absolute left-3 top-3 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wide text-white',
-            isClosed ? 'bg-signal-bad/80' : 'bg-signal-good/80',
+            isClosed ? 'bg-signal-no/80' : 'bg-signal-good/80',
           )}
         >
           <span className={cn('h-1.5 w-1.5 rounded-full', isClosed ? 'bg-white' : 'bg-white')} />

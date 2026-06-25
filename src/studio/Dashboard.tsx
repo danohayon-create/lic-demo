@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts'
-import { Plus, Share2, SlidersHorizontal, ArrowUpDown, ArrowRight, X, Link2, Check, Sparkles, LayoutGrid } from 'lucide-react'
+import { Plus, Share2, SlidersHorizontal, ArrowUpDown, ArrowRight, X, Link2, Check, Sparkles, LayoutGrid, Grid2x2 } from 'lucide-react'
 import { Card, Avatar, Button, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import { Skeleton, useBriefLoading } from '@/components/Skeleton'
@@ -295,6 +295,13 @@ function ProjectHeader({
         <Button variant="secondary" icon={<Share2 className="h-4 w-4" />} onClick={onShare}>
           Share
         </Button>
+        <button
+          onClick={() => navigate(`/studio/selection?p=${project.id}&view=wall`)}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-btn border border-line bg-paper px-4 text-sm font-semibold text-ink transition-all hover:bg-ink/5 active:scale-[0.98]"
+        >
+          <Grid2x2 className="h-4 w-4" />
+          Wall
+        </button>
         <button
           onClick={() => navigate(`/studio/selection?p=${project.id}`)}
           className="inline-flex h-10 items-center justify-center gap-2 rounded-btn border border-gold/40 bg-gold/15 px-4 text-sm font-semibold text-[#8A6D00] transition-all hover:bg-gold/25 active:scale-[0.98]"
