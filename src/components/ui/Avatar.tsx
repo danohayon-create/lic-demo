@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { cn } from '@/lib/cn'
 import { asset } from '@/lib/asset'
 
@@ -32,6 +33,7 @@ function initials(name: string): string {
 
 /** Round avatar with image + initials fallback. */
 export function Avatar({ src, name, size = 'md', ring, className }: AvatarProps) {
+  const [errored, setErrored] = useState(false)
   const s = sizes[size]
   return (
     <span
@@ -43,8 +45,8 @@ export function Avatar({ src, name, size = 'md', ring, className }: AvatarProps)
         className,
       )}
     >
-      {src ? (
-        <img src={asset(src)} alt={name} className="h-full w-full object-cover" />
+      {src && !errored ? (
+        <img src={asset(src)} alt={name} className="h-full w-full object-cover" onError={() => setErrored(true)} />
       ) : (
         <span aria-label={name}>{initials(name)}</span>
       )}
