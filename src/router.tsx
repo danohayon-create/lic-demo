@@ -3,6 +3,7 @@ import { Launcher } from './pages/Launcher'
 import { Pitch } from './pages/Pitch'
 import { StudioLayout } from './studio/StudioLayout'
 import { HomeFeed } from './studio/HomeFeed'
+import { CommandCenter } from './studio/CommandCenter'
 import { Dashboard } from './studio/Dashboard'
 import { SearchScreen } from './studio/SearchScreen'
 import { Review } from './studio/Review'
@@ -18,12 +19,15 @@ import { Profile } from './app/Profile'
 import { CastingDetail } from './app/CastingDetail'
 import { SelfTape } from './app/SelfTape'
 import { Auditions } from './app/Auditions'
+import { SnapApplyTips } from './app/SnapApplyTips'
+import { MobileFeed } from './app/MobileFeed'
 import { TalentDesktopLayout } from './talent/TalentDesktopLayout'
 import { TalentProfilePage } from './talent/TalentProfilePage'
 import { CastingCalls } from './talent/CastingCalls'
 import { TalentAuditions } from './talent/TalentAuditions'
 import { Messages } from './talent/Messages'
 import { Notifications } from './talent/Notifications'
+import { TalentCastingDetail } from './talent/TalentCastingDetail'
 
 export const router = createBrowserRouter([
   { path: '/', element: <Launcher /> },
@@ -34,7 +38,7 @@ export const router = createBrowserRouter([
     path: '/studio',
     element: <StudioLayout />,
     children: [
-      { index: true, element: <HomeFeed /> },
+      { index: true, element: <CommandCenter /> },
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'search', element: <SearchScreen /> },
       { path: 'review', element: <Review /> },
@@ -56,7 +60,9 @@ export const router = createBrowserRouter([
       { path: 'profile', element: <Profile /> },
       { path: 'casting/:id', element: <CastingDetail /> },
       { path: 'selftape/:id', element: <SelfTape /> },
+      { path: 'feed', element: <MobileFeed /> },
       { path: 'auditions', element: <Auditions /> },
+      { path: 'tips', element: <SnapApplyTips /> },
     ],
   },
 
@@ -71,6 +77,7 @@ export const router = createBrowserRouter([
       { path: 'messages', element: <Messages /> },
       { path: 'notifications', element: <Notifications /> },
       { path: 'profile', element: <TalentProfilePage /> },
+      { path: 'casting/:projectId', element: <TalentCastingDetail /> },
     ],
   },
 

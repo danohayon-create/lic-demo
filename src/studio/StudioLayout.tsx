@@ -9,8 +9,8 @@ import { studioUser } from '@/data'
 import { cn } from '@/lib/cn'
 
 const menu = [
-  { to: '/studio/dashboard', label: 'Casting calls' },
   { to: '/studio', label: 'Home', end: true },
+  { to: '/studio/dashboard', label: 'Casting calls' },
   { to: '/studio/search', label: 'Actors' },
 ]
 
@@ -87,7 +87,7 @@ export function StudioLayout() {
               onClick={() => navigate('/studio/search')}
               className="flex items-center gap-2.5 border-l border-line pl-3 text-left"
             >
-              <Avatar name={studioUser.name} size="sm" />
+              <Avatar src={studioUser.avatar} name={studioUser.name} size="sm" />
               <div className="hidden leading-tight lg:block">
                 <div className="text-sm font-semibold text-ink">{studioUser.name}</div>
                 <div className="text-xs text-muted">

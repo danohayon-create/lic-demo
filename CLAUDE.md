@@ -89,15 +89,45 @@ Utilitaire `cn()` dans `src/lib/cn.ts`.
 
 - `data/selection.ts` — store localStorage-backed (`useSyncExternalStore`) des candidats par rôle.
   `CandidateStatus` inclut **`new`** (soumissions fraîches, pas encore notées) en plus du pipeline
-  `no-go → shortlisted → callback → hold → offer → cast`. `LOCKED_COLUMNS` (= `{new}`) empêche le drag
-  hors de cette colonne dans `SelectionConsole` — il faut noter le candidat (via `RoleReview`) pour qu'il
-  en sorte (`rateCandidate` le bascule alors automatiquement vers `no-go`/`shortlisted` selon le score).
-  `deriveTeamRatings()` et `deriveAiMetrics()` reconstituent (déterministe, pas de backend) les bulles
-  "other ratings" et les métriques IA à partir du tally good/maybe/no et de l'id du candidat.
-- `studio/SelectionConsole.tsx` — colonnes teintées (`COLUMN_TONE` : New gris, No Go rouge, Offer vert,
-  Cast jaune), bulles de review collective en bas à droite des cartes, bouton **Select multiple** →
-  sélection multi-cartes + barre flottante en bas (Change status / Send a message, modales via
-  `EditModal`). La flèche retour remonte toujours au Dashboard du projet (jamais à une fiche review).
+  `no-go → shortlisted → callback → offer → cast` (label affiché du statut `no-go` : **"Reviewed"**,
+  pas "No Go" — il regroupe tous les profils dont la vidéo a été revue mais pas promue). `LOCKED_COLUMNS`
+  (= `{new}`) empêche le drag hors de cette colonne dans `SelectionConsole` — il faut noter le candidat
+  (via `RoleReview`) pour qu'il en sorte (`rateCandidate` le bascule alors automatiquement vers
+  `no-go`/`shortlisted` selon le score). Chaque candidat porte aussi des critères de fiche talent
+  (`gender`, `experienceLevel`, `nationality`, `languages`) et `raterVotes` (vote individuel par membre
+  de l'équipe, `team member id → signal`) — source unique pour les bulles "other ratings"
+  (`deriveTeamRatings()`) et pour le filtre "Reviewed by". `useCandidatesForRoles(roleIds)` alimente une
+  vue multi-rôles (tout le projet) sans appeler de hooks dans une boucle.
+- `data/savedSearches.ts` — playlists de recherche multi-critères (localStorage), CRUD `saveSearch` /
+  `deleteSearch` / `useSavedSearches(projectId)`. Le type `SavedSearchFilters` est la shape exacte de
+  l'état de filtres de `SelectionConsole`.
+- `studio/SelectionConsole.tsx` — **vue projet entière** (toutes les colonnes, tous les rôles), plus
+  une fiche projet en tête (poster, synopsis, compteurs roles/submissions/shortlist/booked calculés en
+  direct depuis les candidats) et une barre de recherche multi-critères (`FilterBar` : rôle, note
+  good/maybe/no, score pondéré min/max, revu par, critères talent — genre/expérience/nationalité/langue
+  —, champ texte libre) avec **Save search** → playlist et menu **Playlists** pour recharger/supprimer
+  une recherche sauvegardée. Sous la barre de filtres : un **toolbar de vue** (`ViewTab` Kanban / List /
+  Wall) + le bouton **Select multiple** (caché en vue Wall) → sélection multi-cartes + barre flottante en
+  bas (Change status / Send a message, modales via `EditModal`).
+  - **Kanban** (par défaut) : colonnes teintées (`COLUMN_TONE` : New gris, Offer vert, Cast jaune ;
+    "Reviewed" reste neutre), bulles de review collective en bas à droite des cartes. Chaque en-tête de
+    colonne a, en plus du compteur : un bouton **Select all** dans la colonne (visible seulement en mode
+    sélection — `selectMany()`), un bouton **Watch** (ouvre `WatchModal` sur tous les candidats de cette
+    colonne) et le bouton liste qui bascule en vue **List** filtrée sur cette seule colonne
+    (`columnFocus`, chip "Viewing: …" avec ✕ pour revenir à tout).
+  - **List** (`ListView`) : une ligne par candidat — photo, rôle (gras, au-dessus du nom), petits carrés
+    colorés avec initiales par membre d'équipe (`deriveTeamRatings`), score pondéré, **statut éditable**
+    (`StatusEditor`, dropdown → `moveCandidate`), et un bouton **Watch** par ligne. En tête de liste :
+    **Select all** (mode sélection) + bouton **Watch** global pour toute la liste affichée.
+  - **Wall** (`WallView`, repris de `studio/Wall.tsx`) : une carte par rôle avec la photo du profil
+    retenu (Offer/Cast) ou un bouton **Select** qui bascule en List pré-filtrée sur ce rôle pour choisir.
+  - **`WatchModal`** : pop-up plein-écran (clic en dehors = fermeture, retour à la vue d'origine) qui
+    réutilise le lecteur `Player` de `Review.tsx` pour défiler les vidéos d'une liste de candidats
+    (précédent/suivant) avec les 3 boutons de notation (No go / Maybe / Good match → `rateCandidate`)
+    directement dans la pop-up.
+  La flèche retour remonte toujours au Dashboard du projet (jamais à une fiche review). Le paramètre
+  `?role=` (lien depuis Dashboard/Wall/RoleReview) pré-remplit juste le filtre rôle — il ne restreint
+  plus la vue à un seul rôle.
 - `studio/RoleReview.tsx` — fiche de review d'un candidat (même structure que la review Evermore dans
   `Review.tsx` : rating + étoiles, other ratings, AI scene analysis, feedback direct à l'acteur) avec un
   compteur **XX / YY** (position dans la file de candidats du rôle) à côté de la nav précédent/suivant.

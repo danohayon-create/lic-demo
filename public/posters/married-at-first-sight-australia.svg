@@ -1,0 +1,33 @@
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mafsBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FBE9EC"/>
+      <stop offset="100%" stop-color="#F2C200" stop-opacity="0.25"/>
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="1080" fill="#FBE9EC"/>
+  <rect width="1080" height="1080" fill="url(#mafsBg)"/>
+
+  <!-- interlocking rings -->
+  <circle cx="500" cy="260" r="70" fill="none" stroke="#B8860B" stroke-width="12"/>
+  <circle cx="580" cy="260" r="70" fill="none" stroke="#B8860B" stroke-width="12"/>
+
+  <!-- heart accent -->
+  <g transform="translate(540,420)">
+    <circle cx="-22" cy="0" r="26" fill="#C2185B"/>
+    <circle cx="22" cy="0" r="26" fill="#C2185B"/>
+    <polygon points="-46,14 46,14 0,70" fill="#C2185B"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="540" y="600" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="80" font-weight="900" fill="#7A1F3D" letter-spacing="2">MARRIED AT</text>
+  <text x="540" y="685" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="80" font-weight="900" fill="#7A1F3D" letter-spacing="2">FIRST SIGHT</text>
+  <text x="540" y="745" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" font-weight="700" fill="#B8860B" letter-spacing="14">AUSTRALIA</text>
+
+  <line x1="320" y1="780" x2="760" y2="780" stroke="#B8860B" stroke-width="2" opacity="0.6"/>
+
+  <text x="540" y="825" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="600" fill="#7A1F3D" letter-spacing="5">LOVE IS AN EXPERIMENT</text>
+
+  <text x="540" y="945" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#7A1F3D" letter-spacing="3" opacity="0.85">A BANIJAY AUSTRALIA PRODUCTION</text>
+  <text x="540" y="980" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#7A1F3D" opacity="0.7">SEASON 13 &#183; AUSTRALIA</text>
+</svg>

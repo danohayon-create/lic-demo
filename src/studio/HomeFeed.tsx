@@ -57,7 +57,7 @@ function ProfileCard() {
         <div className="h-16 bg-gradient-to-r from-[#F59E42] to-[#E0483D]" />
         <div className="px-5 pb-5">
           <div className="-mt-8 mb-3">
-            <Avatar name={mayaProfile.name} size="xl" ring />
+            <Avatar src={mayaProfile.avatar} name={mayaProfile.name} size="xl" ring />
           </div>
           <h3 className="text-lg font-bold tracking-tight text-ink">{mayaProfile.name}</h3>
           <p className="text-sm text-muted">
@@ -125,7 +125,7 @@ function Composer() {
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
-        <Avatar name={mayaProfile.name} size="md" />
+        <Avatar src={mayaProfile.avatar} name={mayaProfile.name} size="md" />
         <button
           onClick={() => toast('Composer — bientôt disponible')}
           className="h-11 flex-1 rounded-full border border-line bg-paper px-4 text-left text-sm text-muted hover:bg-paper/60"
@@ -165,7 +165,7 @@ function PostCard({ post }: { post: FeedPost }) {
     <Card className="flex flex-col gap-3">
       {/* header */}
       <div className="flex items-start gap-3">
-        <Avatar name={post.author.name} size="md" />
+        <Avatar src={post.author.avatar} name={post.author.name} size="md" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
             <span className="truncate font-semibold text-ink">{post.author.name}</span>
@@ -211,9 +211,12 @@ function PostCard({ post }: { post: FeedPost }) {
           <video
             src={post.video}
             controls
+            autoPlay
+            muted
+            loop
             playsInline
             preload="metadata"
-            className="aspect-video w-full object-cover"
+            className="aspect-square w-full object-contain"
           />
         </div>
       )}
@@ -269,10 +272,12 @@ function RightRail() {
       <Card className="flex flex-col gap-3">
         <span className="tech-label">Top castings near you</span>
         <ul className="flex flex-col gap-1">
-          {feedSidebar.topCastings.map((c) => (
+          {feedSidebar.topCastings.map((c) => {
+            const projectId = c.title.toLowerCase().replace(/\s+/g, '-').replace(/[éè]/g, 'e')
+            return (
             <li key={c.title}>
               <button
-                onClick={() => navigate('/studio/dashboard')}
+                onClick={() => navigate(`/talent/casting/${projectId}`)}
                 className="flex w-full items-center justify-between rounded-btn px-2 py-2 text-left hover:bg-paper"
               >
                 <span className="min-w-0">
@@ -286,7 +291,8 @@ function RightRail() {
                 </Tag>
               </button>
             </li>
-          ))}
+            )
+          })}
         </ul>
       </Card>
 

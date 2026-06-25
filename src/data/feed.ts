@@ -3,6 +3,19 @@ import type { FeedPost, FeedSidebar } from './types'
 /** Social-feed posts (studio/home surface). */
 export const feedPosts: FeedPost[] = [
   {
+    id: 'post-lic-tips',
+    author: { name: 'Let It Cast', meta: 'Official', verified: true, avatar: '/avatars/lic-logo-square.png' },
+    badge: 'Tips for talent',
+    time: 'Just now',
+    kind: 'training',
+    text: "Recording a self-tape this week? 🎬 We put together our top 10 tips — camera, light, sound, framing, and that all-important first impression — so you can submit with confidence instead of stress. Watch the full rundown, then go snap apply to your next role!",
+    hashtags: ['selftape', 'SnapApply', 'actingtips'],
+    video: '/snapapply/tip-video.mp4',
+    likes: 587,
+    comments: 64,
+    shares: 141,
+  },
+  {
     id: 'post-a24',
     author: { name: 'A24 Casting', meta: 'Casting', verified: true },
     badge: 'Sponsored · Casting call',

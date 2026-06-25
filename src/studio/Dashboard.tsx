@@ -20,6 +20,7 @@ import {
   projectsById,
   rolesByProject,
   team,
+  teamByInitials,
   submissionsOverTimeByProject,
   activityByProject,
   type Role,
@@ -39,7 +40,7 @@ import {
 const PIPELINE_BG_CLASS: Record<RolePipelineStatus, string> = {
   New: 'bg-paper text-muted',
   Viewed: 'bg-paper text-muted',
-  'No Go': 'bg-red-50 text-signal-no',
+  Reviewed: 'bg-paper text-muted',
   Shortlisted: 'bg-link/10 text-link',
   Callback: 'bg-signal-maybe/10 text-[#8A6D00]',
   Offer: 'bg-gold/15 text-[#8A6D00]',
@@ -82,7 +83,7 @@ export function Dashboard() {
   const activityItems = activityByProject[project.id] ?? []
 
   return (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
       <Sidebar activeId={project.id} onNewCasting={() => navigate('/studio/new-casting')} />
       {shareOpen && <ShareModal project={project} onClose={() => setShareOpen(false)} />}
 
@@ -174,31 +175,50 @@ export function Dashboard() {
 
 /* ── Left sidebar ─────────────────────────────────────────────────────────── */
 
+const RANK_DOT  = ['bg-signal-no', 'bg-link', 'bg-signal-maybe', 'bg-signal-good']
+const RANK_TEXT = ['text-signal-no', 'text-link', 'text-signal-maybe', 'text-signal-good']
+
 function Sidebar({ activeId, onNewCasting }: { activeId: string; onNewCasting: () => void }) {
   const navigate = useNavigate()
+  // Sort by today's submissions descending — top 4 get rank colors, rest neutral
+  const ranked = [...projects].sort((a, b) => (b.kpis?.submissions.today ?? 0) - (a.kpis?.submissions.today ?? 0))
+
   return (
     <aside className="flex flex-col gap-4">
       <Card className="flex flex-col gap-3">
-        <span className="tech-label">Projects</span>
+        <span className="tech-label">Active Castings</span>
         <ul className="flex flex-col gap-1">
-          {projects.map((p) => {
+          {ranked.map((p, rank) => {
             const active = p.id === activeId
+            const today = p.kpis?.submissions.today ?? 0
             return (
               <li key={p.id}>
                 <button
                   onClick={() => navigate(`/studio/dashboard?p=${p.id}`)}
                   className={cn(
-                    'flex w-full items-center justify-between rounded-btn px-3 py-2 text-left text-sm transition-colors',
-                    active
-                      ? 'bg-paper font-semibold text-ink ring-1 ring-line'
-                      : 'text-muted hover:bg-ink/5',
+                    'flex w-full items-center gap-2 rounded-btn px-2 py-2 text-left transition-colors',
+                    active ? 'bg-paper ring-1 ring-line' : 'hover:bg-ink/5',
                   )}
                 >
-                  <span className="flex items-center gap-2">
-                    {p.title}
-                    {p.active && <span className="h-1.5 w-1.5 rounded-full bg-match" />}
-                  </span>
-                  <span className="font-mono text-xs text-muted">{p.submissions}</span>
+                  {p.poster && (
+                    <img
+                      src={p.poster}
+                      alt={p.title}
+                      className="h-8 w-8 shrink-0 rounded object-cover ring-1 ring-line"
+                    />
+                  )}
+                  <span className={cn('h-2 w-2 shrink-0 rounded-sm', rank < 4 ? RANK_DOT[rank] : 'bg-line')} />
+                  <div className="min-w-0 flex-1">
+                    <p className={cn('truncate text-sm font-bold', active ? 'text-ink' : 'text-ink/80')}>
+                      {p.title}
+                    </p>
+                    <p className="truncate text-[11px] text-muted">{p.type} · {p.company}</p>
+                  </div>
+                  {today > 0 && (
+                    <span className={cn('shrink-0 font-mono text-xs font-bold', rank < 4 ? RANK_TEXT[rank] : 'text-muted')}>
+                      +{today}
+                    </span>
+                  )}
                 </button>
               </li>
             )
@@ -220,7 +240,7 @@ function Sidebar({ activeId, onNewCasting }: { activeId: string; onNewCasting: (
         <ul className="flex flex-col gap-3">
           {team.map((m) => (
             <li key={m.id} className="flex items-center gap-2.5">
-              <Avatar name={m.name} size="sm" />
+              <Avatar src={m.avatar} name={m.name} size="sm" />
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-ink">{m.name}</div>
                 <div className="truncate text-xs text-muted">{m.role}</div>
@@ -274,13 +294,13 @@ function ProjectHeader({
         <Button variant="secondary" icon={<Share2 className="h-4 w-4" />} onClick={onShare}>
           Share
         </Button>
-        <Button
-          variant="secondary"
-          icon={<LayoutGrid className="h-4 w-4" />}
-          onClick={() => navigate(`/studio/wall?p=${project.id}`)}
+        <button
+          onClick={() => navigate(`/studio/selection?p=${project.id}`)}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-btn border border-gold/40 bg-gold/15 px-4 text-sm font-semibold text-[#8A6D00] transition-all hover:bg-gold/25 active:scale-[0.98]"
         >
-          Wall
-        </Button>
+          <LayoutGrid className="h-4 w-4" />
+          Audition Console
+        </button>
         <Button
           icon={<Sparkles className="h-4 w-4" />}
           onClick={() => navigate(`/studio/casting-recap?p=${project.id}`)}
@@ -335,7 +355,10 @@ function RolesTable({ roles, projectId }: { roles: Role[]; projectId: string }) 
             {['Role', 'Type', 'Submissions', 'Shortlist', 'Status', 'Casting', 'Deadline'].map((h) => (
               <th
                 key={h}
-                className="px-5 py-2.5 text-label font-semibold uppercase tracking-label text-muted"
+                className={cn(
+                  'px-5 py-2.5 text-label font-semibold uppercase tracking-label text-muted',
+                  h === 'Shortlist' && 'text-center',
+                )}
               >
                 {h}
               </th>
@@ -373,8 +396,8 @@ function RoleRow({ role: r, projectId }: { role: Role; projectId: string }) {
       <td className="px-5 py-3 font-semibold text-ink">{r.name}</td>
       <td className="px-5 py-3 text-muted">{r.type}</td>
       <td className="px-5 py-3">
-        <div className="flex items-center gap-2">
-          <span className="w-6 font-semibold text-ink">{submissionsCount}</span>
+        <div className="flex items-center gap-3">
+          <span className="min-w-[3.5rem] font-semibold text-ink">{submissionsCount}</span>
           <Button
             variant="secondary"
             size="sm"
@@ -387,19 +410,8 @@ function RoleRow({ role: r, projectId }: { role: Role; projectId: string }) {
           </Button>
         </div>
       </td>
-      <td className="px-5 py-3">
-        <div className="flex items-center gap-2">
-          <span className="w-6 font-semibold text-ink">{shortlistCount}</span>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={isNotOpened}
-            className={cn(isNotOpened && 'opacity-40 cursor-not-allowed')}
-            onClick={() => navigate(`/studio/selection?p=${projectId}&role=${r.id}`)}
-          >
-            Select
-          </Button>
-        </div>
+      <td className="px-5 py-3 text-center">
+        <span className="font-semibold text-ink">{shortlistCount}</span>
       </td>
       <td className="px-5 py-3">
         <select
@@ -590,7 +602,7 @@ function ActivityFeed({ items }: { items: ActivityItem[] }) {
       <ul className="flex flex-col gap-4">
         {items.map((a) => (
           <li key={a.id} className="flex items-start gap-2.5">
-            <Avatar name={a.actorName} size="sm" />
+            <Avatar src={teamByInitials[a.actorInitials]?.avatar} name={a.actorName} size="sm" />
             <div className="min-w-0 flex-1">
               <p className="text-sm leading-snug text-ink">
                 <span className="font-semibold">{a.actorName}</span> {a.action}{' '}

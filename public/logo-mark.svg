@@ -1,0 +1,8 @@
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- yellow — tall portrait rectangle, top-left -->
+  <rect x="1" y="1" width="31" height="50" rx="7" fill="#F5C518"/>
+  <!-- red — smaller square, right of yellow, vertically centered relative to yellow -->
+  <rect x="37" y="17" width="25" height="32" rx="7" fill="#D7213D"/>
+  <!-- blue — wide landscape rectangle, bottom-right, below red -->
+  <rect x="37" y="54" width="62" height="44" rx="7" fill="#1C6FEB"/>
+</svg>

@@ -1,0 +1,46 @@
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="survBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F2994A"/>
+      <stop offset="45%" stop-color="#C2410C"/>
+      <stop offset="100%" stop-color="#1C0F06"/>
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="1080" fill="url(#survBg)"/>
+
+  <!-- decorative tribal stripes -->
+  <g opacity="0.3" fill="#1C0F06">
+    <rect x="0" y="0" width="1080" height="10"/>
+    <rect x="0" y="1060" width="1080" height="20"/>
+    <rect x="0" y="1030" width="1080" height="6"/>
+  </g>
+  <g opacity="0.18" fill="#FFF6E9">
+    <polygon points="0,1080 60,1010 120,1080"/>
+    <polygon points="140,1080 200,1010 260,1080"/>
+    <polygon points="280,1080 340,1010 400,1080"/>
+    <polygon points="680,1080 740,1010 800,1080"/>
+    <polygon points="820,1080 880,1010 940,1080"/>
+    <polygon points="960,1080 1020,1010 1080,1080"/>
+  </g>
+
+  <!-- torch handle -->
+  <rect x="520" y="360" width="40" height="160" rx="8" fill="#5A3A1E"/>
+
+  <!-- flame -->
+  <g>
+    <ellipse cx="540" cy="280" rx="80" ry="160" fill="#E0483D"/>
+    <ellipse cx="540" cy="300" rx="54" ry="115" fill="#F2994A"/>
+    <ellipse cx="540" cy="325" rx="28" ry="68" fill="#FFD23F"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="540" y="610" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="124" font-weight="900" fill="#FFFFFF" letter-spacing="4">SURVIVOR</text>
+  <text x="540" y="675" text-anchor="middle" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#FFD23F" letter-spacing="14">AUSTRALIA</text>
+
+  <line x1="320" y1="715" x2="760" y2="715" stroke="#FFD23F" stroke-width="2" opacity="0.6"/>
+
+  <text x="540" y="760" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="600" fill="#FCEFE3" letter-spacing="5">OUTWIT &#183; OUTPLAY &#183; OUTLAST</text>
+
+  <text x="540" y="945" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#FCEFE3" letter-spacing="3" opacity="0.85">A BANIJAY AUSTRALIA PRODUCTION</text>
+  <text x="540" y="980" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#FCEFE3" opacity="0.7">SEASON 11 &#183; FIJI ISLANDS</text>
+</svg>

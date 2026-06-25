@@ -1,0 +1,37 @@
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bbBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1A1F2E"/>
+      <stop offset="100%" stop-color="#05070C"/>
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="1080" fill="url(#bbBg)"/>
+
+  <!-- radiating rays -->
+  <g stroke="#E0483D" stroke-width="3" opacity="0.4">
+    <line x1="540" y1="280" x2="540" y2="180"/>
+    <line x1="540" y1="280" x2="640" y2="195" />
+    <line x1="540" y1="280" x2="440" y2="195" />
+    <line x1="540" y1="280" x2="700" y2="280"/>
+    <line x1="540" y1="280" x2="380" y2="280"/>
+    <line x1="540" y1="280" x2="650" y2="365"/>
+    <line x1="540" y1="280" x2="430" y2="365"/>
+  </g>
+
+  <!-- eye -->
+  <circle cx="540" cy="280" r="150" fill="none" stroke="#FFFFFF" stroke-width="8"/>
+  <circle cx="540" cy="280" r="80" fill="#E0483D"/>
+  <circle cx="540" cy="280" r="34" fill="#05070C"/>
+  <circle cx="556" cy="262" r="12" fill="#FFFFFF" opacity="0.8"/>
+
+  <!-- wordmark -->
+  <text x="540" y="560" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="104" font-weight="900" fill="#FFFFFF" letter-spacing="4">BIG BROTHER</text>
+  <text x="540" y="625" text-anchor="middle" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#E0483D" letter-spacing="14">AUSTRALIA</text>
+
+  <line x1="320" y1="665" x2="760" y2="665" stroke="#E0483D" stroke-width="2" opacity="0.6"/>
+
+  <text x="540" y="710" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="600" fill="#C9CBD3" letter-spacing="5">WATCHING IS EVERYTHING</text>
+
+  <text x="540" y="945" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#C9CBD3" letter-spacing="3" opacity="0.85">A BANIJAY AUSTRALIA PRODUCTION</text>
+  <text x="540" y="980" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#C9CBD3" opacity="0.7">THE HOUSE &#183; SYDNEY</text>
+</svg>

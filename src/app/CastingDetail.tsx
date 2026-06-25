@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
-import { ArrowLeft, Share2, MoreHorizontal, Play, Zap, Sparkles } from 'lucide-react'
+import { ArrowLeft, Share2, MoreHorizontal, Play, Zap, Sparkles, CheckCircle2 } from 'lucide-react'
 import { Card, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import {
@@ -52,15 +52,22 @@ export function CastingDetail() {
       <BriefPlayer poster={project?.poster} />
 
       <div>
-        <span className="tech-label">
-          {casting.kind} · {casting.company}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="tech-label">
+            {casting.kind} · {casting.company}
+          </span>
+          {casting.status === 'closed' && (
+            <Tag tone="no" className="font-bold">Closed</Tag>
+          )}
+        </div>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">{casting.title}</h1>
         <div className="mt-1 flex items-center gap-2">
           <p className="text-sm text-muted">
             Role: <span className="font-medium text-ink">{casting.roleName}</span>
           </p>
-          <Tag tone="cream">{role?.auditionFlow ?? 'Open Call'}</Tag>
+          {casting.status !== 'closed' && (
+            <Tag tone="cream">{role?.auditionFlow ?? 'Open Call'}</Tag>
+          )}
         </div>
       </div>
 
@@ -102,17 +109,64 @@ export function CastingDetail() {
         </Card>
       )}
 
-      {/* fixed bottom CTA */}
-      <div className="sticky bottom-0 -mx-4 mt-auto bg-gradient-to-t from-paper via-paper to-transparent px-4 pb-4 pt-3">
-        <button
-          onClick={() => navigate(`/app/selftape/${id}`)}
-          className="flex w-full items-center justify-center gap-2 rounded-btn bg-cream py-3.5 text-sm font-bold text-ink shadow-sm transition-transform active:scale-[0.99]"
-        >
-          <Zap className="h-4 w-4" />
-          Self Tape your audition
-        </button>
-      </div>
+      {casting.status === 'closed' ? (
+        <SubmissionCard role={casting.roleName} year={casting.year} />
+      ) : (
+        <div className="sticky bottom-0 -mx-4 mt-auto bg-gradient-to-t from-paper via-paper to-transparent px-4 pb-4 pt-3">
+          <button
+            onClick={() => navigate(`/app/selftape/${id}`)}
+            className="flex w-full items-center justify-center gap-2 rounded-btn bg-cream py-3.5 text-sm font-bold text-ink shadow-sm transition-transform active:scale-[0.99]"
+          >
+            <Zap className="h-4 w-4" />
+            Self Tape your audition
+          </button>
+        </div>
+      )}
     </div>
+  )
+}
+
+function SubmissionCard({ role, year }: { role: string; year?: string }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const [playing, setPlaying] = useState(false)
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="tech-label">Your submission</span>
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-signal-good">
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          Submitted{year ? ` · ${year}` : ''}
+        </div>
+      </div>
+      <p className="text-sm text-muted">
+        Role: <span className="font-medium text-ink">{role}</span>
+      </p>
+      <div className="relative aspect-video overflow-hidden rounded-btn bg-black">
+        <video
+          ref={ref}
+          src="/media/audition.mp4"
+          playsInline
+          preload="metadata"
+          className="h-full w-full object-cover"
+          onClick={() => (playing ? ref.current?.pause() : ref.current?.play())}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+        />
+        {!playing && (
+          <button
+            onClick={() => ref.current?.play()}
+            className="absolute inset-0 flex items-center justify-center bg-black/20"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-ink shadow-lg">
+              <Play className="ml-0.5 h-5 w-5" />
+            </span>
+          </button>
+        )}
+        <span className="absolute left-3 top-3 rounded bg-black/55 px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wider text-white">
+          SELF-TAPE
+        </span>
+      </div>
+    </Card>
   )
 }
 

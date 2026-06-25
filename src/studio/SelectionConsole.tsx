@@ -1,14 +1,37 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, CheckSquare, Lock, MapPin, Send, Square, X } from 'lucide-react'
-import { Avatar, Button, Tag } from '@/components/ui'
+import {
+  ArrowLeft,
+  Bookmark,
+  Check,
+  CheckCheck,
+  CheckSquare,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Grid2x2,
+  HelpCircle,
+  LayoutGrid,
+  List,
+  Lock,
+  MapPin,
+  Play,
+  Search,
+  Send,
+  Square,
+  Trash2,
+  UserRound,
+  X,
+} from 'lucide-react'
+import { Avatar, Button, Card, Tag } from '@/components/ui'
 import { EditModal, Field, TextArea, TextInput } from '@/components/EditModal'
 import { useToast } from '@/components/Toast'
 import { cn } from '@/lib/cn'
-import { projectsById, rolesByProject } from '@/data'
+import { projects, projectsById, rolesByProject, team, type Role } from '@/data'
 import {
-  useRoleCandidates,
+  useCandidatesForRoles,
   moveCandidate,
+  rateCandidate,
   candidateScore,
   deriveTeamRatings,
   BOARD_COLUMNS,
@@ -16,15 +39,59 @@ import {
   LOCKED_COLUMNS,
   type Candidate,
   type CandidateStatus,
+  type Signal,
 } from '@/data/selection'
+import { useSavedSearches, saveSearch, deleteSearch, type SavedSearchFilters } from '@/data/savedSearches'
+import { Player } from './Review'
+
+type ViewMode = 'kanban' | 'list' | 'wall'
 
 const SINGLE_OCCUPANT: CandidateStatus[] = ['offer', 'cast']
 
 const COLUMN_TONE: Partial<Record<CandidateStatus, string>> = {
   new: 'bg-gray-200/70 ring-gray-400/30',
-  'no-go': 'bg-red-50/60 ring-signal-no/15',
   offer: 'bg-green-50/70 ring-signal-good/20',
   cast: 'bg-yellow-50/70 ring-signal-maybe/25',
+}
+
+const LOGLINE =
+  "A detective obsessed with cold cases discovers that the prime suspect she's hunted for two decades could be her own mother."
+
+/** Shared grid template for the list view — header + rows must align exactly.
+ *  checkbox · photo · talent · watch · team evaluation · spacer · score · status */
+const LIST_GRID = 'grid grid-cols-[24px_44px_220px_64px_160px_1fr_120px_140px] items-center gap-6'
+
+const SIGNAL_OPTIONS: { value: Signal; label: string; dot: string }[] = [
+  { value: 'good', label: 'Good match', dot: 'bg-signal-good' },
+  { value: 'maybe', label: 'Maybe', dot: 'bg-signal-maybe' },
+  { value: 'no', label: 'No go', dot: 'bg-signal-no' },
+]
+
+const EMPTY_FILTERS: SavedSearchFilters = {
+  roleIds: [],
+  signals: [],
+  scoreMin: null,
+  scoreMax: null,
+  reviewerIds: [],
+  genders: [],
+  experienceLevels: [],
+  nationalities: [],
+  languages: [],
+  query: '',
+}
+
+function activeFilterCount(f: SavedSearchFilters): number {
+  return (
+    f.roleIds.length +
+    f.signals.length +
+    f.reviewerIds.length +
+    f.genders.length +
+    f.experienceLevels.length +
+    f.nationalities.length +
+    f.languages.length +
+    (f.scoreMin != null || f.scoreMax != null ? 1 : 0) +
+    (f.query.trim() ? 1 : 0)
+  )
 }
 
 export function SelectionConsole() {
@@ -32,20 +99,82 @@ export function SelectionConsole() {
   const toast = useToast()
   const [searchParams] = useSearchParams()
   const projectId = searchParams.get('p') || 'les-ombres-de-midi'
-  const roleId = searchParams.get('role') || ''
+  const initialRoleId = searchParams.get('role') || ''
 
   const project = projectsById[projectId] ?? projectsById['les-ombres-de-midi']
   const roles = rolesByProject(project.id)
-  const role = roles.find((r) => r.id === roleId) ?? roles[0]
+  const allRoleIds = useMemo(() => roles.map((r) => r.id), [roles])
+  const rolesById = useMemo(
+    () => Object.fromEntries(roles.map((r) => [r.id, r])) as Record<string, Role>,
+    [roles],
+  )
 
-  const candidates = useRoleCandidates(role.id)
+  // Unfiltered — powers the header counters.
+  const allCandidates = useCandidatesForRoles(allRoleIds)
+
+  const [filters, setFilters] = useState<SavedSearchFilters>(() => ({
+    ...EMPTY_FILTERS,
+    roleIds: initialRoleId ? [initialRoleId] : [],
+  }))
+
+  const nationalityOptions = useMemo(
+    () => Array.from(new Set(allCandidates.map((c) => c.nationality).filter(Boolean))) as string[],
+    [allCandidates],
+  )
+  const languageOptions = useMemo(
+    () => Array.from(new Set(allCandidates.flatMap((c) => c.languages ?? []))).sort(),
+    [allCandidates],
+  )
+  const experienceOptions = useMemo(
+    () => Array.from(new Set(allCandidates.map((c) => c.experienceLevel).filter(Boolean))) as string[],
+    [allCandidates],
+  )
+
+  const filteredCandidates = useMemo(() => {
+    const q = filters.query.trim().toLowerCase()
+    return allCandidates.filter((c) => {
+      if (filters.roleIds.length > 0 && !filters.roleIds.includes(c.roleId)) return false
+      if (filters.signals.length > 0 && !filters.signals.some((s) => c[s] > 0)) return false
+      const score = candidateScore(c)
+      if (filters.scoreMin != null && score < filters.scoreMin) return false
+      if (filters.scoreMax != null && score > filters.scoreMax) return false
+      if (filters.reviewerIds.length > 0) {
+        const reviewers = Object.keys(c.raterVotes ?? {})
+        if (!filters.reviewerIds.some((id) => reviewers.includes(id))) return false
+      }
+      if (filters.genders.length > 0 && (!c.gender || !filters.genders.includes(c.gender))) return false
+      if (
+        filters.experienceLevels.length > 0 &&
+        (!c.experienceLevel || !filters.experienceLevels.includes(c.experienceLevel))
+      )
+        return false
+      if (filters.nationalities.length > 0 && (!c.nationality || !filters.nationalities.includes(c.nationality)))
+        return false
+      if (filters.languages.length > 0 && !(c.languages ?? []).some((l) => filters.languages.includes(l)))
+        return false
+      if (q) {
+        const haystack = [c.name, c.city, c.nationality, rolesById[c.roleId]?.name, ...(c.languages ?? [])]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+      return true
+    })
+  }, [allCandidates, filters, rolesById])
+
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [overColumn, setOverColumn] = useState<CandidateStatus | null>(null)
+
+  const [view, setView] = useState<ViewMode>('kanban')
+  const [columnFocus, setColumnFocus] = useState<CandidateStatus | null>(null)
 
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [statusModalOpen, setStatusModalOpen] = useState(false)
   const [messageModalOpen, setMessageModalOpen] = useState(false)
+  const [saveSearchOpen, setSaveSearchOpen] = useState(false)
+  const [watchQueue, setWatchQueue] = useState<Candidate[] | null>(null)
 
   const handleDrop = (status: CandidateStatus) => {
     setOverColumn(null)
@@ -71,7 +200,15 @@ export function SelectionConsole() {
 
   const clearSelection = () => setSelectedIds(new Set())
 
-  const selectedCandidates = candidates.filter((c) => selectedIds.has(c.id))
+  const selectMany = (ids: string[]) => {
+    setSelectedIds((cur) => {
+      const next = new Set(cur)
+      ids.forEach((id) => next.add(id))
+      return next
+    })
+  }
+
+  const selectedCandidates = filteredCandidates.filter((c) => selectedIds.has(c.id))
 
   const bulkMoveTo = (status: CandidateStatus) => {
     let failures = 0
@@ -89,8 +226,41 @@ export function SelectionConsole() {
     clearSelection()
   }
 
+  // ── header counters (project-wide, unfiltered) ──
+  const shortlistRank = BOARD_COLUMNS.indexOf('shortlisted')
+  const shortlistCount = allCandidates.filter((c) => BOARD_COLUMNS.indexOf(c.status) >= shortlistRank).length
+  const bookedCount = allCandidates.filter((c) => c.status === 'cast').length
+
+  const activeCount = activeFilterCount(filters)
+
+  const handleProjectChange = (newId: string) => {
+    setFilters(EMPTY_FILTERS)
+    setColumnFocus(null)
+    setSelectedIds(new Set())
+    setSelectMode(false)
+    setView('kanban')
+    navigate(`/studio/selection?p=${newId}`)
+  }
+
   return (
     <div className="flex flex-col gap-5 pb-20">
+      {/* Project picker */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-label text-muted">Project</span>
+        <div className="relative">
+          <select
+            value={project.id}
+            onChange={(e) => handleProjectChange(e.target.value)}
+            className="h-9 appearance-none rounded-btn border border-line bg-card pl-3 pr-8 text-sm font-semibold text-ink outline-none focus:border-ink/30"
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.title}</option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
@@ -101,90 +271,211 @@ export function SelectionConsole() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            <span className="tech-label">{project.title} · Selection console</span>
-            <h1 className="text-xl font-bold tracking-tight text-ink">{role?.name}</h1>
+            <span className="tech-label">Selection console</span>
+            <h1 className="text-xl font-bold tracking-tight text-ink">{project.title}</h1>
           </div>
         </div>
+      </div>
 
-        <Button
-          variant={selectMode ? 'primary' : 'secondary'}
-          size="sm"
-          icon={selectMode ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
-          onClick={toggleSelectMode}
-        >
-          {selectMode ? 'Done selecting' : 'Select multiple'}
-        </Button>
+      {/* Project summary */}
+      <Card className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          {project.poster ? (
+            <img
+              src={project.poster}
+              alt={project.title}
+              className="h-24 w-24 shrink-0 rounded-btn object-cover ring-1 ring-line"
+            />
+          ) : (
+            <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-btn bg-paper text-3xl ring-1 ring-line">
+              🎬
+            </span>
+          )}
+          <div className="flex-1">
+            <span className="tech-label">
+              {project.type} · {project.company} · {project.genre}
+            </span>
+            <h2 className="mt-0.5 text-xl font-bold tracking-tight text-ink">{project.title}</h2>
+            <p className="mt-1 text-sm italic leading-relaxed text-muted">"{LOGLINE}"</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 border-t border-line pt-4 sm:grid-cols-4">
+          <StatCell value={roles.length} label="Roles" />
+          <StatCell value={allCandidates.length} label="Submissions" />
+          <StatCell value={shortlistCount} label="Shortlist" />
+          <StatCell value={bookedCount} label="Booked" />
+        </div>
+      </Card>
+
+      {/* Multi-criteria search */}
+      <FilterBar
+        filters={filters}
+        onFilters={setFilters}
+        roles={roles}
+        nationalityOptions={nationalityOptions}
+        languageOptions={languageOptions}
+        experienceOptions={experienceOptions}
+        activeCount={activeCount}
+        onSave={() => setSaveSearchOpen(true)}
+        projectId={project.id}
+      />
+
+      {/* View toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1 rounded-btn bg-paper p-1 ring-1 ring-line">
+          <ViewTab active={view === 'kanban'} icon={<LayoutGrid className="h-3.5 w-3.5" />} label="Kanban" onClick={() => setView('kanban')} />
+          <ViewTab active={view === 'list'} icon={<List className="h-3.5 w-3.5" />} label="List" onClick={() => { setView('list'); setColumnFocus(null) }} />
+          <ViewTab active={view === 'wall'} icon={<Grid2x2 className="h-3.5 w-3.5" />} label="Wall" onClick={() => { setView('wall'); setColumnFocus(null) }} />
+        </div>
+
+        {view !== 'wall' && (
+          <Button
+            variant={selectMode ? 'primary' : 'secondary'}
+            size="sm"
+            icon={selectMode ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+            onClick={toggleSelectMode}
+          >
+            {selectMode ? 'Done selecting' : 'Select multiple'}
+          </Button>
+        )}
       </div>
 
       <p className="text-sm text-muted">
+        {filteredCandidates.length} of {allCandidates.length} candidates ·{' '}
         {selectMode
           ? 'Click cards to select them, then change their status or message them in bulk.'
-          : 'Drag a candidate card between columns to move them through the pipeline. New submissions must be reviewed before they can move. Offer and Cast each hold one profile.'}
+          : view === 'kanban'
+            ? 'Drag a candidate card between columns to move them through the pipeline. New submissions must be reviewed before they can move. Offer and Cast each hold one profile.'
+            : view === 'list'
+              ? 'Double-click a row to watch the review.'
+              : 'Each role shows its current pick — Select to open the list and choose a candidate.'}
       </p>
 
-      {/* Board */}
-      <div className="flex gap-3 overflow-x-auto pb-2">
-        {BOARD_COLUMNS.map((col) => {
-          const colCandidates = candidates.filter((c) => c.status === col)
-          const capped = SINGLE_OCCUPANT.includes(col)
-          const isOver = overColumn === col
-          const locked = LOCKED_COLUMNS.has(col)
-          return (
-            <div
-              key={col}
-              onDragOver={locked ? undefined : (e) => { e.preventDefault(); setOverColumn(col) }}
-              onDragLeave={locked ? undefined : () => setOverColumn((c) => (c === col ? null : c))}
-              onDrop={locked ? undefined : () => handleDrop(col)}
-              className={cn(
-                'flex w-[230px] shrink-0 flex-col gap-2 rounded-card p-2 ring-1 transition-colors',
-                isOver ? 'bg-link/5 ring-link/30' : COLUMN_TONE[col] ?? 'bg-paper ring-line',
-              )}
-            >
-              <div className="flex items-center justify-between px-1.5 py-1">
-                <span
-                  className={cn(
-                    'flex items-center gap-1 text-[11px] font-bold uppercase tracking-label',
-                    col === 'no-go' ? 'text-signal-no' : 'text-muted',
-                  )}
-                >
-                  {locked && <Lock className="h-3 w-3" />}
-                  {BOARD_COLUMN_LABELS[col]}
-                </span>
-                <span
-                  className={cn(
-                    'rounded-full px-1.5 py-0.5 text-[10px] font-bold',
-                    col === 'no-go' ? 'bg-signal-no/15 text-signal-no' : 'bg-ink/10 text-ink',
-                  )}
-                >
-                  {colCandidates.length}{capped ? '/1' : ''}
-                </span>
-              </div>
+      {columnFocus && view === 'list' && (
+        <div className="flex items-center gap-2 -mt-2">
+          <Tag tone="link" className="gap-1.5">
+            Viewing: {BOARD_COLUMN_LABELS[columnFocus]}
+            <button onClick={() => setColumnFocus(null)} className="text-link/70 hover:text-link">
+              <X className="h-3 w-3" />
+            </button>
+          </Tag>
+        </div>
+      )}
 
-              <div className="flex flex-col gap-2">
-                {colCandidates.map((c) => (
-                  <CandidateCard
-                    key={c.id}
-                    candidate={c}
-                    dragging={draggedId === c.id}
-                    draggable={!locked && !selectMode}
-                    onDragStart={() => setDraggedId(c.id)}
-                    onDragEnd={() => setDraggedId(null)}
-                    onOpenReview={() => navigate(`/studio/review?p=${projectId}&role=${role.id}&candidate=${c.id}`)}
-                    selectMode={selectMode}
-                    selected={selectedIds.has(c.id)}
-                    onToggleSelect={() => toggleSelected(c.id)}
-                  />
-                ))}
-                {colCandidates.length === 0 && (
-                  <div className="rounded-btn border border-dashed border-line py-8 text-center text-[11px] text-muted">
-                    {locked ? 'No new submissions' : 'Drop here'}
-                  </div>
+      {/* Kanban view */}
+      {view === 'kanban' && (
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {BOARD_COLUMNS.map((col) => {
+            const colCandidates = filteredCandidates.filter((c) => c.status === col)
+            const capped = SINGLE_OCCUPANT.includes(col)
+            const isOver = overColumn === col
+            const locked = LOCKED_COLUMNS.has(col)
+            return (
+              <div
+                key={col}
+                onDragOver={locked ? undefined : (e) => { e.preventDefault(); setOverColumn(col) }}
+                onDragLeave={locked ? undefined : () => setOverColumn((c) => (c === col ? null : c))}
+                onDrop={locked ? undefined : () => handleDrop(col)}
+                className={cn(
+                  'flex w-[230px] shrink-0 flex-col gap-2 rounded-card p-2 ring-1 transition-colors',
+                  isOver ? 'bg-link/5 ring-link/30' : COLUMN_TONE[col] ?? 'bg-paper ring-line',
                 )}
+              >
+                <div className="flex items-center justify-between px-1.5 py-1">
+                  <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-label text-muted">
+                    {locked && <Lock className="h-3 w-3" />}
+                    {BOARD_COLUMN_LABELS[col]}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="rounded-full bg-ink/10 px-1.5 py-0.5 text-[10px] font-bold text-ink">
+                      {colCandidates.length}{capped ? '/1' : ''}
+                    </span>
+                    {colCandidates.length > 0 && (
+                      <>
+                        {selectMode && (
+                          <button
+                            onClick={() => selectMany(colCandidates.map((c) => c.id))}
+                            title={`Select all in ${BOARD_COLUMN_LABELS[col]}`}
+                            className="flex h-5 w-5 items-center justify-center rounded-full text-muted hover:bg-ink/10 hover:text-ink"
+                          >
+                            <CheckCheck className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setWatchQueue(colCandidates)}
+                          title={`Watch ${BOARD_COLUMN_LABELS[col]}`}
+                          className="flex h-5 w-5 items-center justify-center rounded-full text-muted hover:bg-ink/10 hover:text-ink"
+                        >
+                          <Play className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => { setColumnFocus(col); setView('list') }}
+                          title={`View ${BOARD_COLUMN_LABELS[col]} as a list`}
+                          className="flex h-5 w-5 items-center justify-center rounded-full text-muted hover:bg-ink/10 hover:text-ink"
+                        >
+                          <List className="h-3 w-3" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {colCandidates.map((c) => (
+                    <CandidateCard
+                      key={c.id}
+                      candidate={c}
+                      roleName={rolesById[c.roleId]?.name}
+                      showRole={filters.roleIds.length !== 1}
+                      dragging={draggedId === c.id}
+                      draggable={!locked && !selectMode}
+                      onDragStart={() => setDraggedId(c.id)}
+                      onDragEnd={() => setDraggedId(null)}
+                      onOpenReview={() => navigate(`/studio/review?p=${projectId}&role=${c.roleId}&candidate=${c.id}`)}
+                      selectMode={selectMode}
+                      selected={selectedIds.has(c.id)}
+                      onToggleSelect={() => toggleSelected(c.id)}
+                    />
+                  ))}
+                  {colCandidates.length === 0 && (
+                    <div className="rounded-btn border border-dashed border-line py-8 text-center text-[11px] text-muted">
+                      {locked ? 'No new submissions' : 'No candidates'}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* List view */}
+      {view === 'list' && (
+        <ListView
+          candidates={columnFocus ? filteredCandidates.filter((c) => c.status === columnFocus) : filteredCandidates}
+          rolesById={rolesById}
+          selectMode={selectMode}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelected}
+          onSelectAll={selectMany}
+          onOpenReview={(c) => navigate(`/studio/review?p=${projectId}&role=${c.roleId}&candidate=${c.id}`)}
+          onWatch={(c) => setWatchQueue([c])}
+          onWatchAll={(list) => setWatchQueue(list)}
+        />
+      )}
+
+      {/* Wall view */}
+      {view === 'wall' && (
+        <WallView
+          roles={roles}
+          allCandidates={allCandidates}
+          onSelect={(roleId) => {
+            setFilters((f) => ({ ...f, roleIds: [roleId] }))
+            setView('list')
+            setColumnFocus(null)
+          }}
+        />
+      )}
 
       {/* Bulk action bar */}
       {selectMode && selectedIds.size > 0 && (
@@ -238,9 +529,309 @@ export function SelectionConsole() {
           clearSelection()
         }}
       />
+
+      {/* Save search modal */}
+      <SaveSearchModal
+        open={saveSearchOpen}
+        onClose={() => setSaveSearchOpen(false)}
+        onSave={(name) => {
+          saveSearch(project.id, name, filters)
+          toast(`Search saved to your playlists as "${name}"`)
+          setSaveSearchOpen(false)
+        }}
+      />
+
+      {/* Watch modal */}
+      {watchQueue && watchQueue.length > 0 && (
+        <WatchModal candidates={watchQueue} rolesById={rolesById} onClose={() => setWatchQueue(null)} />
+      )}
     </div>
   )
 }
+
+/* ── Filter bar ───────────────────────────────────────────────────────────── */
+
+function FilterBar({
+  filters,
+  onFilters,
+  roles,
+  nationalityOptions,
+  languageOptions,
+  experienceOptions,
+  activeCount,
+  onSave,
+  projectId,
+}: {
+  filters: SavedSearchFilters
+  onFilters: (f: SavedSearchFilters) => void
+  roles: Role[]
+  nationalityOptions: string[]
+  languageOptions: string[]
+  experienceOptions: string[]
+  activeCount: number
+  onSave: () => void
+  projectId: string
+}) {
+  const toast = useToast()
+  const savedSearches = useSavedSearches(projectId)
+  const [playlistsOpen, setPlaylistsOpen] = useState(false)
+
+  const toggleIn = (key: keyof SavedSearchFilters, value: string) => {
+    const list = filters[key] as string[]
+    onFilters({
+      ...filters,
+      [key]: list.includes(value) ? list.filter((v) => v !== value) : [...list, value],
+    })
+  }
+
+  const clearAll = () => onFilters(EMPTY_FILTERS)
+
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterDropdown label="Role" count={filters.roleIds.length}>
+          <CheckList
+            options={roles.map((r) => ({ value: r.id, label: r.name }))}
+            selected={filters.roleIds}
+            onToggle={(v) => toggleIn('roleIds', v)}
+          />
+        </FilterDropdown>
+
+        <FilterDropdown label="Rating" count={filters.signals.length}>
+          <CheckList
+            options={SIGNAL_OPTIONS.map((o) => ({ value: o.value, label: o.label, dot: o.dot }))}
+            selected={filters.signals}
+            onToggle={(v) => toggleIn('signals', v)}
+          />
+        </FilterDropdown>
+
+        <FilterDropdown label="Score" count={filters.scoreMin != null || filters.scoreMax != null ? 1 : 0}>
+          <div className="flex flex-col gap-2 p-2">
+            <p className="text-xs text-muted">Weighted Let It Cast score (0–100)</p>
+            <div className="flex items-center gap-2">
+              <TextInput
+                type="number"
+                placeholder="Min"
+                value={filters.scoreMin ?? ''}
+                onChange={(e) => onFilters({ ...filters, scoreMin: e.target.value === '' ? null : Number(e.target.value) })}
+                className="w-20"
+              />
+              <span className="text-muted">–</span>
+              <TextInput
+                type="number"
+                placeholder="Max"
+                value={filters.scoreMax ?? ''}
+                onChange={(e) => onFilters({ ...filters, scoreMax: e.target.value === '' ? null : Number(e.target.value) })}
+                className="w-20"
+              />
+            </div>
+          </div>
+        </FilterDropdown>
+
+        <FilterDropdown label="Reviewed by" count={filters.reviewerIds.length}>
+          <CheckList
+            options={team.map((m) => ({ value: m.id, label: `${m.name} · ${m.role}` }))}
+            selected={filters.reviewerIds}
+            onToggle={(v) => toggleIn('reviewerIds', v)}
+          />
+        </FilterDropdown>
+
+        <FilterDropdown label="Talent criteria" count={filters.genders.length + filters.experienceLevels.length + filters.nationalities.length + filters.languages.length}>
+          <div className="flex max-h-80 flex-col gap-3 overflow-y-auto p-2">
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-label text-muted">Gender</p>
+              <CheckList
+                options={[{ value: 'F', label: 'Female' }, { value: 'M', label: 'Male' }]}
+                selected={filters.genders}
+                onToggle={(v) => toggleIn('genders', v)}
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-label text-muted">Experience</p>
+              <CheckList
+                options={experienceOptions.map((v) => ({ value: v, label: v }))}
+                selected={filters.experienceLevels}
+                onToggle={(v) => toggleIn('experienceLevels', v)}
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-label text-muted">Nationality</p>
+              <CheckList
+                options={nationalityOptions.map((v) => ({ value: v, label: v }))}
+                selected={filters.nationalities}
+                onToggle={(v) => toggleIn('nationalities', v)}
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-label text-muted">Languages</p>
+              <CheckList
+                options={languageOptions.map((v) => ({ value: v, label: v }))}
+                selected={filters.languages}
+                onToggle={(v) => toggleIn('languages', v)}
+              />
+            </div>
+          </div>
+        </FilterDropdown>
+
+        {/* Search */}
+        <div className="relative ml-auto min-w-[200px] flex-1 sm:flex-none sm:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <input
+            value={filters.query}
+            onChange={(e) => onFilters({ ...filters, query: e.target.value })}
+            placeholder="Search talent, role, criteria…"
+            className="h-9 w-full rounded-btn border border-line bg-paper pl-9 pr-3 text-sm text-ink outline-none placeholder:text-muted/60 focus:border-ink/30 focus:bg-card"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between border-t border-line pt-2.5">
+        <div className="flex items-center gap-3">
+          {activeCount > 0 && (
+            <button onClick={clearAll} className="text-xs font-medium text-link hover:underline">
+              Clear all filters ({activeCount})
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" icon={<Bookmark className="h-3.5 w-3.5" />} onClick={onSave} disabled={activeCount === 0}>
+            Save search
+          </Button>
+
+          <div className="relative">
+            <Button size="sm" variant="secondary" iconRight={<ChevronDown className="h-3.5 w-3.5" />} onClick={() => setPlaylistsOpen((v) => !v)}>
+              Playlists{savedSearches.length > 0 ? ` (${savedSearches.length})` : ''}
+            </Button>
+            {playlistsOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setPlaylistsOpen(false)} />
+                <div className="absolute right-0 z-20 mt-2 w-72 rounded-card border border-line bg-card p-1.5 shadow-card-hover">
+                  {savedSearches.length === 0 ? (
+                    <p className="px-2.5 py-3 text-center text-sm text-muted">No saved searches yet.</p>
+                  ) : (
+                    savedSearches.map((s) => (
+                      <div key={s.id} className="flex items-center gap-1 rounded-btn px-2 py-1.5 hover:bg-paper">
+                        <button
+                          onClick={() => {
+                            onFilters(s.filters)
+                            setPlaylistsOpen(false)
+                            toast(`Loaded playlist "${s.name}"`)
+                          }}
+                          className="min-w-0 flex-1 truncate text-left text-sm font-medium text-ink"
+                        >
+                          {s.name}
+                        </button>
+                        <button
+                          onClick={() => deleteSearch(s.id)}
+                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted hover:bg-signal-no/10 hover:text-signal-no"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function FilterDropdown({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+          count > 0 ? 'border-ink bg-ink text-white' : 'border-line bg-paper text-ink hover:bg-ink/5',
+        )}
+      >
+        {label}
+        {count > 0 && <span className="rounded-full bg-white/20 px-1.5 text-[10px]">{count}</span>}
+        <ChevronDown className="h-3 w-3" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 z-20 mt-2 w-64 rounded-card border border-line bg-card p-1.5 shadow-card-hover">
+            {children}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function CheckList({
+  options,
+  selected,
+  onToggle,
+}: {
+  options: { value: string; label: string; dot?: string }[]
+  selected: string[]
+  onToggle: (value: string) => void
+}) {
+  return (
+    <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto">
+      {options.length === 0 && <p className="px-2.5 py-2 text-sm text-muted">No options.</p>}
+      {options.map((o) => (
+        <label
+          key={o.value}
+          className="flex cursor-pointer items-center gap-2 rounded-btn px-2.5 py-1.5 text-sm text-ink hover:bg-paper"
+        >
+          <input
+            type="checkbox"
+            checked={selected.includes(o.value)}
+            onChange={() => onToggle(o.value)}
+            className="h-3.5 w-3.5 accent-link"
+          />
+          {o.dot && <span className={cn('h-2 w-2 rounded-full', o.dot)} />}
+          {o.label}
+        </label>
+      ))}
+    </div>
+  )
+}
+
+/* ── Save search modal ────────────────────────────────────────────────────── */
+
+function SaveSearchModal({
+  open,
+  onClose,
+  onSave,
+}: {
+  open: boolean
+  onClose: () => void
+  onSave: (name: string) => void
+}) {
+  const [name, setName] = useState('')
+  return (
+    <EditModal
+      open={open}
+      title="Save this search"
+      onClose={onClose}
+      onSave={() => name.trim() && onSave(name.trim())}
+      saveLabel="Save to playlists"
+    >
+      <Field label="Playlist name">
+        <TextInput
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Female leads, 80+ score"
+          autoFocus
+        />
+      </Field>
+    </EditModal>
+  )
+}
+
+/* ── Send a message modal ─────────────────────────────────────────────────── */
 
 function SendMessageModal({
   open,
@@ -306,8 +897,308 @@ function SendMessageModal({
   )
 }
 
+/* ── View toolbar ─────────────────────────────────────────────────────────── */
+
+function ViewTab({
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-1.5 rounded-btn px-3 py-1.5 text-xs font-semibold transition-colors',
+        active ? 'bg-ink text-white' : 'text-muted hover:text-ink',
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
+/* ── List view ────────────────────────────────────────────────────────────── */
+
+function ListView({
+  candidates,
+  rolesById,
+  selectMode,
+  selectedIds,
+  onToggleSelect,
+  onSelectAll,
+  onOpenReview,
+  onWatch,
+  onWatchAll,
+}: {
+  candidates: Candidate[]
+  rolesById: Record<string, Role>
+  selectMode: boolean
+  selectedIds: Set<string>
+  onToggleSelect: (id: string) => void
+  onSelectAll: (ids: string[]) => void
+  onOpenReview: (c: Candidate) => void
+  onWatch: (c: Candidate) => void
+  onWatchAll: (list: Candidate[]) => void
+}) {
+  if (candidates.length === 0) {
+    return (
+      <div className="rounded-card border border-dashed border-line py-16 text-center text-sm text-muted">
+        No candidates match these filters.
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col overflow-hidden rounded-card border border-line bg-card">
+      <div className="flex items-center justify-between border-b border-line bg-paper px-4 py-2.5">
+        {selectMode ? (
+          <button
+            onClick={() => onSelectAll(candidates.map((c) => c.id))}
+            className="flex items-center gap-1.5 text-xs font-semibold text-ink hover:text-link"
+          >
+            <CheckCheck className="h-3.5 w-3.5" />
+            Select all ({candidates.length})
+          </button>
+        ) : (
+          <span />
+        )}
+        <Button size="sm" variant="secondary" icon={<Play className="h-3.5 w-3.5" />} onClick={() => onWatchAll(candidates)}>
+          Watch
+        </Button>
+      </div>
+
+      {/* Column headers */}
+      <div className={cn(LIST_GRID, 'border-b border-line bg-paper px-4 py-2.5')}>
+        <span />
+        <span className="col-span-2 text-[11px] font-bold uppercase tracking-wide text-muted">Talent</span>
+        <span className="text-center text-[11px] font-bold uppercase tracking-wide text-muted">Watch</span>
+        <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Team evaluation</span>
+        <span />
+        <span className="text-center text-[11px] font-bold uppercase tracking-wide text-muted">Performance Score</span>
+        <span className="text-right text-[11px] font-bold uppercase tracking-wide text-muted">Status</span>
+      </div>
+
+      {candidates.map((c, i) => {
+        const score = candidateScore(c)
+        const reviewed = c.good + c.maybe + c.no > 0
+        const scoreColor = score >= 75 ? 'text-signal-good' : score >= 50 ? 'text-[#8A6D00]' : 'text-signal-no'
+        const teamRatings = deriveTeamRatings(c)
+        const selected = selectedIds.has(c.id)
+        return (
+          <div
+            key={c.id}
+            onClick={selectMode ? () => onToggleSelect(c.id) : undefined}
+            onDoubleClick={selectMode ? undefined : () => onOpenReview(c)}
+            title={selectMode ? 'Click to select' : 'Double-click to watch the review'}
+            className={cn(
+              LIST_GRID,
+              'px-4 py-3.5',
+              i > 0 && 'border-t border-line',
+              selectMode ? 'cursor-pointer' : 'cursor-default',
+              selected ? 'bg-link/5' : 'hover:bg-paper',
+            )}
+          >
+            {/* checkbox */}
+            <span>
+              {selectMode && (
+                <span
+                  className={cn(
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2',
+                    selected ? 'border-link bg-link text-white' : 'border-line text-transparent',
+                  )}
+                >
+                  <CheckSquare className="h-3 w-3" />
+                </span>
+              )}
+            </span>
+
+            {/* photo */}
+            <Avatar src={c.avatar} name={c.name} size="md" />
+
+            {/* role + name */}
+            <div className="min-w-0">
+              <p className="truncate text-xs font-bold uppercase tracking-wide text-muted">
+                {rolesById[c.roleId]?.name ?? '—'}
+              </p>
+              <p className="truncate text-sm font-semibold text-ink">{c.name}</p>
+              <p className="truncate text-[11px] text-muted">{c.age} y/o · {c.city}</p>
+            </div>
+
+            {/* watch */}
+            <button
+              onClick={(e) => { e.stopPropagation(); onWatch(c) }}
+              title="Watch"
+              className="flex h-10 w-10 items-center justify-center justify-self-center rounded-full bg-[#E62117] text-white shadow-sm transition-colors hover:bg-signal-good"
+            >
+              <Play className="ml-0.5 h-4 w-4 fill-current" />
+            </button>
+
+            {/* team ratings — small squares with initials */}
+            <div className="flex flex-wrap items-center gap-1">
+              {teamRatings.length === 0 && <span className="text-xs text-muted">No reviews yet</span>}
+              {teamRatings.map((r, idx) => (
+                <span
+                  key={`${r.initials}-${idx}`}
+                  className={cn(
+                    'flex h-6 w-6 items-center justify-center rounded text-[9px] font-bold text-white',
+                    r.signal === 'good' && 'bg-signal-good',
+                    r.signal === 'maybe' && 'bg-signal-maybe',
+                    r.signal === 'no' && 'bg-signal-no',
+                  )}
+                  title="Collective review"
+                >
+                  {r.initials}
+                </span>
+              ))}
+            </div>
+
+            {/* spacer */}
+            <span />
+
+            {/* score */}
+            <div className="text-center">
+              {reviewed ? (
+                <span className={cn('text-base font-bold', scoreColor)}>{score}</span>
+              ) : (
+                <span className="text-[11px] font-semibold text-muted">—</span>
+              )}
+            </div>
+
+            {/* status — editable */}
+            <div className="text-right" onClick={(e) => e.stopPropagation()}>
+              <StatusEditor candidate={c} />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ── Status editor (list view) ───────────────────────────────────────────── */
+
+function StatusEditor({ candidate }: { candidate: Candidate }) {
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
+  const tone = candidate.status === 'cast' || candidate.status === 'offer' ? 'good' : candidate.status === 'new' ? 'neutral' : 'link'
+
+  return (
+    <div className="relative inline-block">
+      <button onClick={() => setOpen((v) => !v)} className="inline-flex items-center gap-1">
+        <Tag tone={tone}>{BOARD_COLUMN_LABELS[candidate.status]}</Tag>
+        <ChevronDown className="h-3 w-3 text-muted" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-20 mt-1 w-40 rounded-card border border-line bg-card p-1.5 text-left shadow-card-hover">
+            {BOARD_COLUMNS.filter((col) => col !== 'new').map((col) => (
+              <button
+                key={col}
+                onClick={() => {
+                  const r = moveCandidate(candidate.id, col)
+                  if (!r.ok) toast(r.reason ?? "Couldn't move candidate")
+                  setOpen(false)
+                }}
+                className={cn(
+                  'flex w-full items-center justify-between rounded-btn px-2.5 py-1.5 text-sm hover:bg-paper',
+                  candidate.status === col ? 'font-semibold text-ink' : 'text-muted',
+                )}
+              >
+                {BOARD_COLUMN_LABELS[col]}
+                {candidate.status === col && <Check className="h-3.5 w-3.5" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/* ── Wall view ────────────────────────────────────────────────────────────── */
+
+function WallView({
+  roles,
+  allCandidates,
+  onSelect,
+}: {
+  roles: Role[]
+  allCandidates: Candidate[]
+  onSelect: (roleId: string) => void
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      {roles.map((role) => {
+        const candidates = allCandidates.filter((c) => c.roleId === role.id)
+        const chosen = candidates.find((c) => c.status === 'cast') ?? candidates.find((c) => c.status === 'offer')
+        const shortlistRank = BOARD_COLUMNS.indexOf('shortlisted')
+        const shortlisted = candidates.filter((c) => BOARD_COLUMNS.indexOf(c.status) >= shortlistRank).length
+
+        return (
+          <Card key={role.id} flush className="flex flex-col overflow-hidden">
+            <div className="flex h-32 items-center justify-center bg-paper">
+              {chosen ? (
+                <Avatar src={chosen.avatar} name={chosen.name} size="xl" />
+              ) : (
+                <UserRound className="h-10 w-10 text-line" />
+              )}
+            </div>
+            <div className="flex flex-1 flex-col gap-2 p-4">
+              <p className="font-bold text-ink">{role.name}</p>
+              {chosen ? (
+                <>
+                  <p className="text-sm text-ink">{chosen.name}</p>
+                  <div className="mt-auto flex items-center justify-between">
+                    <span
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-[11px] font-bold',
+                        chosen.status === 'cast' ? 'bg-signal-good-bg text-signal-good' : 'bg-gold/15 text-[#8A6D00]',
+                      )}
+                    >
+                      {chosen.status === 'cast' ? 'Cast' : 'Offer'}
+                    </span>
+                    <span className="text-sm font-bold text-match">{candidateScore(chosen)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted">{candidates.length} submissions, {shortlisted} shortlisted</p>
+                  <Button size="sm" variant="secondary" className="mt-auto" onClick={() => onSelect(role.id)}>
+                    Select
+                  </Button>
+                </>
+              )}
+            </div>
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ── Candidate card ───────────────────────────────────────────────────────── */
+
+function StatCell({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-1 whitespace-nowrap rounded-btn bg-paper px-2 py-3 ring-1 ring-line">
+      <span className="text-2xl font-bold tracking-tight text-ink">{value}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">{label}</span>
+    </div>
+  )
+}
+
 function CandidateCard({
   candidate,
+  roleName,
+  showRole,
   dragging,
   draggable,
   onDragStart,
@@ -318,6 +1209,8 @@ function CandidateCard({
   onToggleSelect,
 }: {
   candidate: Candidate
+  roleName?: string
+  showRole: boolean
   dragging: boolean
   draggable: boolean
   onDragStart: () => void
@@ -364,7 +1257,9 @@ function CandidateCard({
         <Avatar src={candidate.avatar} name={candidate.name} size="sm" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-ink">{candidate.name}</p>
-          <p className="text-[11px] text-muted">{candidate.age} y/o</p>
+          <p className="truncate text-[11px] text-muted">
+            {candidate.age} y/o{showRole && roleName ? ` · ${roleName}` : ''}
+          </p>
         </div>
       </div>
       <div className="flex items-center justify-between border-t border-line pt-2">
@@ -406,6 +1301,99 @@ function CandidateCard({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/* ── Watch modal ──────────────────────────────────────────────────────────── */
+
+const WATCH_RATING_OPTIONS = [
+  { key: 'no' as const, label: 'No go', icon: X, base: 'border-signal-no/30 text-signal-no hover:bg-signal-no/5', active: 'border-signal-no bg-signal-no text-white' },
+  { key: 'maybe' as const, label: 'Maybe', icon: HelpCircle, base: 'border-signal-maybe/40 text-[#8A6D00] hover:bg-signal-maybe/5', active: 'border-signal-maybe bg-signal-maybe text-white' },
+  { key: 'good' as const, label: 'Good match', icon: Check, base: 'border-signal-good/30 text-signal-good hover:bg-signal-good/5', active: 'border-signal-good bg-signal-good text-white' },
+]
+
+function WatchModal({
+  candidates,
+  rolesById,
+  onClose,
+}: {
+  candidates: Candidate[]
+  rolesById: Record<string, Role>
+  onClose: () => void
+}) {
+  const toast = useToast()
+  const [idx, setIdx] = useState(0)
+  const [lastVote, setLastVote] = useState<Signal | null>(null)
+  const candidate = candidates[Math.min(idx, candidates.length - 1)]
+
+  const go = (dir: 1 | -1) => {
+    setIdx((i) => (i + dir + candidates.length) % candidates.length)
+    setLastVote(null)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-ink/70 p-4" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex w-full max-w-2xl flex-col gap-3 rounded-card bg-card p-4 shadow-card-hover"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-ink">
+              {candidate.name} <span className="font-normal text-muted">— {rolesById[candidate.roleId]?.name}</span>
+            </p>
+            <p className="font-mono text-xs text-muted">{idx + 1} / {candidates.length}</p>
+          </div>
+          <button onClick={onClose} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-ink/5 hover:text-ink">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <Player key={candidate.id} src={candidate.video} />
+
+        <div className="flex items-center justify-between gap-3">
+          <button
+            onClick={() => go(-1)}
+            disabled={candidates.length < 2}
+            className="flex h-9 w-9 items-center justify-center rounded-btn border border-line text-muted hover:text-ink disabled:opacity-30"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <div className="flex flex-1 justify-center gap-2">
+            {WATCH_RATING_OPTIONS.map((o) => {
+              const Icon = o.icon
+              const isActive = lastVote === o.key
+              return (
+                <button
+                  key={o.key}
+                  onClick={() => {
+                    rateCandidate(candidate.id, o.key)
+                    setLastVote(o.key)
+                    toast(`Vote added: ${o.label}`)
+                  }}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-btn border-2 px-3 py-2 text-xs font-semibold transition-all',
+                    isActive ? o.active : o.base,
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {o.label}
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            onClick={() => go(1)}
+            disabled={candidates.length < 2}
+            className="flex h-9 w-9 items-center justify-center rounded-btn border border-line text-muted hover:text-ink disabled:opacity-30"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

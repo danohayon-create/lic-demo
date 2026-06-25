@@ -150,9 +150,11 @@ function CastingRow({ casting: c }: { casting: DiscoverCasting }) {
         </div>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
-        <Tag tone="good" className="font-semibold">
-          {c.match} match
-        </Tag>
+        {c.status === 'closed' ? (
+          <Tag tone="no" className="font-semibold">Closed</Tag>
+        ) : (
+          <Tag tone="good" className="font-semibold">{c.match} match</Tag>
+        )}
         {c.hasDetail && <ChevronRight className="h-4 w-4 text-muted" />}
       </div>
     </Card>

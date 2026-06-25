@@ -1,14 +1,39 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Monitor, Smartphone, UserSquare2, ArrowRight, Play } from 'lucide-react'
 import { Logo } from '@/components/ui'
+import { PasswordGateModal, usePasswordGate } from '@/components/ui/PasswordGate'
 
 /** Demo home — sober launcher with the logo and two big entry points. */
 export function Launcher() {
   const navigate = useNavigate()
+  const { unlocked, unlock } = usePasswordGate()
+  const [pending, setPending] = useState<string | null>(null)
+
+  function handleEntry(path: string) {
+    if (unlocked) {
+      navigate(path)
+    } else {
+      setPending(path)
+    }
+  }
+
+  function handleSuccess() {
+    unlock()
+    if (pending) navigate(pending)
+    setPending(null)
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-6 py-16">
+      {pending && (
+        <PasswordGateModal
+          onSuccess={handleSuccess}
+          onClose={() => setPending(null)}
+        />
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -33,21 +58,21 @@ export function Launcher() {
             tag="Web · desktop"
             title="Entrer côté Production"
             desc="Dashboard, recherche talents, review des self-tapes."
-            onClick={() => navigate('/studio/dashboard')}
+            onClick={() => handleEntry('/studio')}
           />
           <EntryCard
             icon={<Smartphone className="h-5 w-5" />}
             tag="Mobile · app"
             title="Entrer côté Talent"
             desc="Casting calls, Snap apply, self-tape, auditions."
-            onClick={() => navigate('/app')}
+            onClick={() => handleEntry('/app')}
           />
           <EntryCard
             icon={<UserSquare2 className="h-5 w-5" />}
             tag="Web · desktop"
             title="Espace Talent (bureau)"
             desc="Casting calls, auditions, messages, notifications et fiche profil façon LinkedIn."
-            onClick={() => navigate('/talent')}
+            onClick={() => handleEntry('/talent')}
           />
         </div>
 

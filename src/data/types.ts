@@ -186,6 +186,7 @@ export interface TeamMember {
   role: string
   initials: string
   company: string
+  avatar?: string
 }
 
 // ── Projects / roles ─────────────────────────────────────────────────────────
@@ -217,6 +218,10 @@ export interface Project {
   /** Poster / thumbnail image path. */
   poster?: string
   roleIds: ID[]
+  /** Short logline / synopsis shown on the talent-facing casting page. */
+  synopsis?: string
+  /** Director's note or casting director's brief message. */
+  directorBrief?: string
 }
 
 /** A point in the "submissions over time" chart. */
@@ -332,6 +337,7 @@ export interface FeedAuthor {
   /** Author meta, e.g. "Singer", "Producer at A24", "Media", "Page". */
   meta: string
   verified?: boolean
+  avatar?: string
 }
 
 export interface FeedPost {
@@ -405,6 +411,12 @@ export interface DiscoverCasting {
   match: number
   /** Whether a rich detail screen exists for this casting. */
   hasDetail: boolean
+  /** Poster image path. */
+  poster?: string
+  /** "ongoing" = open for submissions, "closed" = past / applied. */
+  status?: 'ongoing' | 'closed'
+  /** Year the casting closed — shown on closed cards. */
+  year?: string
 }
 
 /** A point in the talent "plays" sparkline. */

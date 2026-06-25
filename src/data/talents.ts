@@ -15,6 +15,7 @@ export const talents: Talent[] = [
     auditions: 28,
     callbacks: 7,
     verified: true,
+    avatar: '/avatars/maya-reyes.png',
   },
   {
     id: 'ines-karim',
@@ -27,6 +28,7 @@ export const talents: Talent[] = [
     match: 87,
     auditions: 19,
     callbacks: 4,
+    avatar: '/avatars/ines-karim.jpg',
   },
   {
     id: 'sofia-bello',
@@ -40,6 +42,7 @@ export const talents: Talent[] = [
     match: 84,
     auditions: 31,
     callbacks: 9,
+    avatar: '/avatars/sofia-bello.jpg',
   },
   {
     id: 'lea-martin',
@@ -52,6 +55,7 @@ export const talents: Talent[] = [
     match: 79,
     auditions: 16,
     callbacks: 3,
+    avatar: '/avatars/lea-martin.jpg',
   },
   {
     id: 'hannah-levy',
@@ -64,6 +68,7 @@ export const talents: Talent[] = [
     match: 76,
     auditions: 24,
     callbacks: 6,
+    avatar: '/avatars/hannah-levy.jpg',
   },
   {
     id: 'eva-sokolov',
@@ -76,6 +81,7 @@ export const talents: Talent[] = [
     match: 73,
     auditions: 11,
     callbacks: 2,
+    avatar: '/avatars/eva-sokolov.jpg',
   },
   {
     id: 'margot-chen',
@@ -88,6 +94,7 @@ export const talents: Talent[] = [
     match: 71,
     auditions: 18,
     callbacks: 3,
+    avatar: '/avatars/margot-chen.jpg',
   },
 ]
 

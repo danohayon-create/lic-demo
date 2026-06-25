@@ -628,7 +628,7 @@ function TalentRow({ talent, checked, onToggle }: { talent: Talent; checked: boo
     <Card className="flex flex-col gap-4 lg:flex-row lg:items-center">
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <input type="checkbox" checked={checked} onChange={onToggle} className="mt-1 h-4 w-4 shrink-0 accent-ink" />
-        <Avatar name={talent.name} size="lg" />
+        <Avatar src={talent.avatar} name={talent.name} size="lg" />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-ink">{talent.name}</span>
@@ -675,7 +675,7 @@ function TalentCardGrid({ talent, checked, onToggle }: { talent: Talent; checked
   return (
     <Card interactive className="flex flex-col gap-3" onClick={() => navigate('/studio/review')}>
       <div className="flex items-start justify-between">
-        <Avatar name={talent.name} size="lg" />
+        <Avatar src={talent.avatar} name={talent.name} size="lg" />
         <input type="checkbox" checked={checked} onClick={e => e.stopPropagation()} onChange={onToggle} className="h-4 w-4 accent-ink" />
       </div>
       <div>

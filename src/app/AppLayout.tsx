@@ -1,6 +1,6 @@
 import { NavLink, Outlet, Link, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
-import { Clapperboard, Zap, Film, User, ArrowLeft } from 'lucide-react'
+import { Clapperboard, Newspaper, Film, User, ArrowLeft } from 'lucide-react'
 import { PhoneFrame } from '@/components/PhoneFrame'
 import { PageTransition } from '@/components/PageTransition'
 import { Logo } from '@/components/ui'
@@ -8,7 +8,7 @@ import { cn } from '@/lib/cn'
 
 const tabs = [
   { to: '/app', label: 'Casting calls', icon: Clapperboard, end: true },
-  { to: '/app/selftape/evermore', label: 'Snap apply', icon: Zap, premium: true },
+  { to: '/app/feed', label: 'Feed', icon: Newspaper },
   { to: '/app/auditions', label: 'Auditions', icon: Film },
   { to: '/app/profile', label: 'Profile', icon: User },
 ]
@@ -20,7 +20,7 @@ const tabs = [
  */
 export function AppLayout() {
   const { pathname } = useLocation()
-  const fullBleed = pathname.startsWith('/app/selftape')
+  const fullBleed = pathname.startsWith('/app/selftape') || pathname.startsWith('/app/tips')
   const showTab = !fullBleed && !pathname.startsWith('/app/casting')
 
   return (
@@ -39,9 +39,11 @@ export function AppLayout() {
 
       <PhoneFrame>
         <AnimatePresence mode="wait">
-          <PageTransition key={pathname} className="min-h-full">
+          <PageTransition key={pathname} className={fullBleed ? 'h-full' : 'min-h-full'}>
             {fullBleed ? (
-              <Outlet />
+              <div className="h-full">
+                <Outlet />
+              </div>
             ) : (
               <div className={cn('min-h-full px-4 pt-12', showTab ? 'pb-28' : 'pb-6')}>
                 <Outlet />
@@ -53,7 +55,7 @@ export function AppLayout() {
         {showTab && (
           <nav className="absolute inset-x-0 bottom-0 z-30 border-t border-line bg-card/95 px-2 pb-5 pt-2 backdrop-blur">
             <div className="flex items-stretch justify-between">
-              {tabs.map(({ to, label, icon: Icon, end, premium }) => {
+              {tabs.map(({ to, label, icon: Icon, end }) => {
                 const prefix = to.split('/').slice(0, 3).join('/')
                 const active = end ? pathname === to : pathname.startsWith(prefix)
                 return (
@@ -69,11 +71,7 @@ export function AppLayout() {
                     <span
                       className={cn(
                         'flex h-9 w-9 items-center justify-center rounded-full transition-colors',
-                        premium
-                          ? 'bg-cream text-ink'
-                          : active
-                            ? 'bg-ink text-white'
-                            : 'bg-transparent text-muted',
+                        active ? 'bg-ink text-white' : 'bg-transparent text-muted',
                       )}
                     >
                       <Icon className="h-[18px] w-[18px]" />
@@ -85,6 +83,7 @@ export function AppLayout() {
             </div>
           </nav>
         )}
+
       </PhoneFrame>
     </div>
   )

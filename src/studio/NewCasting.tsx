@@ -82,15 +82,24 @@ const extractedRoles = [
   },
 ]
 
-const ANALYSIS_STEPS = [
+const ANALYSIS_STEPS_DOC_ONLY = [
   'Reading document structure…',
   'Identifying characters…',
   'Building role profiles…',
   'Generating project summary…',
 ]
 
-/** The 6-step casting workflow, shown by the `Stepper` on every screen of the flow. */
-export const WORKFLOW_STEPS = ['Document', 'Analyse', 'Rôles', 'Briefs vidéo', 'Format', 'Publish']
+const ANALYSIS_STEPS_WITH_VIDEO = [
+  "Watching director's video brief…",
+  'Reading document structure…',
+  'Identifying characters…',
+  'Cross-referencing video & script…',
+  'Building role profiles…',
+  'Generating project summary…',
+]
+
+/** The 5-step casting workflow, shown by the `Stepper` on every screen of the flow. */
+export const WORKFLOW_STEPS = ['Document', 'Analyse', 'Rôles', 'Format', 'Publish']
 
 // Maps wizard mock role ids (r1…r4) to the real data-layer role ids used by
 // CastingRecap / CastingSearch, in extraction order.
@@ -125,6 +134,9 @@ type CompensationData = {
   hours: string
 }
 
+type UploadedDoc = { name: string }
+type VideoBrief = { name: string; url: string }
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function NewCasting() {
@@ -133,7 +145,8 @@ export function NewCasting() {
   const [step, setStep] = useState(1)
 
   // Shared state across steps
-  const [briefRecorded, setBriefRecorded] = useState(false)
+  const [documents, setDocuments] = useState<UploadedDoc[]>([])
+  const [videoBriefs, setVideoBriefs] = useState<VideoBrief[]>([])
   const [roleBriefs, setRoleBriefs] = useState<Record<string, boolean>>({})
   const [roleDocs, setRoleDocs] = useState<Record<string, boolean>>({})
   const [castingStatus, setCastingStatus] = useState<Record<string, CastingStatus>>({})
@@ -164,10 +177,10 @@ export function NewCasting() {
   }
 
   const headingFor = (s: number) => {
-    if (s <= 2) return 'Import your project document'
-    if (s === 3) return 'Review extracted data'
-    if (s === 4) return 'Add video briefs'
-    return 'Review & choose format'
+    if (s <= 2) return 'Import your project material'
+    if (s === 3) return 'Review & configure roles'
+    if (s === 4) return 'Choose audition format'
+    return 'Publish your casting'
   }
 
   return (
@@ -198,32 +211,50 @@ export function NewCasting() {
           exit={document.visibilityState === 'visible' ? { opacity: 0, x: -18 } : undefined}
           transition={{ duration: 0.2, ease: 'easeOut' }}
         >
-          {step === 1 && <StepUpload onDone={() => setStep(2)} onBack={goBack} />}
-          {step === 2 && <StepAnalyzing onDone={() => setStep(3)} />}
-          {step === 3 && <StepReview onNext={() => setStep(4)} onBack={goBack} />}
-          {step === 4 && (
-            <StepBriefs
-              briefRecorded={briefRecorded}
-              onBriefRecorded={() => setBriefRecorded(true)}
+          {step === 1 && (
+            <StepUpload
+              documents={documents}
+              onDocuments={setDocuments}
+              videoBriefs={videoBriefs}
+              onVideoBriefs={setVideoBriefs}
+              onDone={() => setStep(2)}
+              onBack={goBack}
+            />
+          )}
+          {step === 2 && <StepAnalyzing hasVideo={videoBriefs.length > 0} onDone={() => setStep(3)} />}
+          {step === 3 && (
+            <StepRoles
+              videoBriefs={videoBriefs}
+              onVideoBriefs={setVideoBriefs}
               roleBriefs={roleBriefs}
               onRoleBrief={(id) => setRoleBriefs((p) => ({ ...p, [id]: true }))}
               roleDocs={roleDocs}
               onRoleDoc={(id) => setRoleDocs((p) => ({ ...p, [id]: true }))}
               castingStatus={castingStatus}
               onCastingStatus={(id, s) => setCastingStatus((p) => ({ ...p, [id]: s }))}
-              onNext={() => setStep(5)}
+              onNext={() => setStep(4)}
               onBack={goBack}
             />
           )}
-          {step === 5 && (
+          {step === 4 && (
             <StepFormat
               globalFormat={globalFormat}
               onGlobalFormat={setGlobalFormat}
               roleFormats={roleFormats}
               onRoleFormat={(id, f) => setRoleFormats((p) => ({ ...p, [id]: f }))}
+              castingStatus={castingStatus}
+              onNext={() => setStep(5)}
+              onBack={goBack}
+            />
+          )}
+          {step === 5 && (
+            <StepPublish
+              videoBriefs={videoBriefs}
               roleBriefs={roleBriefs}
               roleDocs={roleDocs}
               castingStatus={castingStatus}
+              globalFormat={globalFormat}
+              roleFormats={roleFormats}
               onPublish={publish}
               onBack={goBack}
             />
@@ -277,87 +308,178 @@ export function Stepper({ current, labels }: { current: number; labels: string[]
 
 // ── Step 1 — Upload ───────────────────────────────────────────────────────────
 
-function StepUpload({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
-  const [file, setFile] = useState<string | null>(null)
-  const [dragging, setDragging] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+function StepUpload({
+  documents,
+  onDocuments,
+  videoBriefs,
+  onVideoBriefs,
+  onDone,
+  onBack,
+}: {
+  documents: UploadedDoc[]
+  onDocuments: (docs: UploadedDoc[]) => void
+  videoBriefs: VideoBrief[]
+  onVideoBriefs: (v: VideoBrief[]) => void
+  onDone: () => void
+  onBack: () => void
+}) {
+  const docInputRef = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
+  const [draggingDoc, setDraggingDoc] = useState(false)
+  const [draggingVideo, setDraggingVideo] = useState(false)
 
-  const simulateFile = () =>
-    setFile('character_breakdown_ombres_de_midi.pdf · 8.2 MB')
+  const formatSize = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+
+  const addDocs = (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const added = Array.from(files).map((f) => ({ name: `${f.name} · ${formatSize(f.size)}` }))
+    onDocuments([...documents, ...added])
+  }
+
+  const addVideos = (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const added = Array.from(files).map((f) => ({ name: `${f.name} · ${formatSize(f.size)}`, url: URL.createObjectURL(f) }))
+    onVideoBriefs([...videoBriefs, ...added])
+  }
+
+  const removeDoc = (i: number) => onDocuments(documents.filter((_, idx) => idx !== i))
+  const removeVideo = (i: number) => onVideoBriefs(videoBriefs.filter((_, idx) => idx !== i))
+
+  const useSample = () => {
+    onDocuments([{ name: 'character_breakdown_ombres_de_midi.pdf · 8.2 MB' }])
+    onVideoBriefs([{ name: 'director_brief_ombres_de_midi.mp4 · 24.6 MB', url: '/brief-project.mp4' }])
+  }
+
+  const hasAny = documents.length > 0 || videoBriefs.length > 0
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <p className="text-sm text-ink">
-            Upload a script, a character breakdown, or a role description. Let It Cast will extract
-            the project structure and all roles automatically.
-          </p>
-          <p className="text-xs text-muted">
-            Supported formats: PDF, Final Draft (.fdx), Fountain, Word (.docx)
-          </p>
+      <p className="text-sm text-ink">
+        Upload a script or character breakdown, and/or a video brief from the director. Let It Cast's
+        AI will analyse everything you provide to build the project structure, roles, and synopsis automatically.
+      </p>
+
+      {/* Document dropzone */}
+      <Card className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-1">
+          <span className="tech-label">Project document</span>
+          <span className="text-xs text-muted">PDF, Final Draft (.fdx), Fountain, Word (.docx)</span>
         </div>
 
-        {!file ? (
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); simulateFile() }}
-            onClick={() => inputRef.current?.click()}
-            className={cn(
-              'flex cursor-pointer flex-col items-center gap-3 rounded-card border-2 border-dashed px-8 py-12 transition-colors',
-              dragging ? 'border-link bg-link/5' : 'border-line bg-paper hover:border-ink/30',
-            )}
-          >
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-card ring-1 ring-line">
-              <Upload className="h-6 w-6 text-muted" />
-            </span>
-            <div className="text-center">
-              <p className="text-sm font-semibold text-ink">Drop your document here</p>
-              <p className="text-xs text-muted">or click to browse files — max 50 MB</p>
-            </div>
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".pdf,.fdx,.fountain,.docx"
-              className="hidden"
-              onChange={() => simulateFile()}
-            />
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDraggingDoc(true) }}
+          onDragLeave={() => setDraggingDoc(false)}
+          onDrop={(e) => { e.preventDefault(); setDraggingDoc(false); addDocs(e.dataTransfer.files) }}
+          onClick={() => docInputRef.current?.click()}
+          className={cn(
+            'flex cursor-pointer flex-col items-center gap-2 rounded-card border-2 border-dashed px-6 py-8 transition-colors',
+            draggingDoc ? 'border-link bg-link/5' : 'border-line bg-paper hover:border-ink/30',
+          )}
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-card ring-1 ring-line">
+            <FileText className="h-5 w-5 text-muted" />
+          </span>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-ink">Drop your script or breakdown here</p>
+            <p className="text-xs text-muted">or click to browse — max 50 MB per file</p>
           </div>
-        ) : (
-          <div className="flex items-center gap-3 rounded-btn bg-paper px-4 py-3 ring-1 ring-line">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn bg-link/10 text-link">
-              <FileText className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-ink">{file}</p>
-              <p className="text-xs text-match">Ready to analyse</p>
-            </div>
-            <button onClick={() => setFile(null)} className="text-muted hover:text-ink">
-              <X className="h-4 w-4" />
-            </button>
+          <input
+            ref={docInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.fdx,.fountain,.docx"
+            className="hidden"
+            onChange={(e) => addDocs(e.target.files)}
+          />
+        </div>
+
+        {documents.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {documents.map((d, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-btn bg-paper px-4 py-3 ring-1 ring-line">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-link/10 text-link">
+                  <FileText className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-ink">{d.name}</p>
+                  <p className="text-xs text-match">Ready to analyse</p>
+                </div>
+                <button onClick={() => removeDoc(i)} className="text-muted hover:text-ink">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
           </div>
         )}
+      </Card>
 
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-line" />
-          <span className="text-xs text-muted">or</span>
-          <div className="h-px flex-1 bg-line" />
+      {/* Video brief dropzone */}
+      <Card className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-1">
+          <span className="tech-label">Director's video brief</span>
+          <span className="text-xs text-muted">MP4, MOV — max 500 MB</span>
+        </div>
+        <p className="text-xs leading-relaxed text-muted">
+          Optional but powerful: a short video where the director introduces the project, roles, and
+          creative vision. LIC AI watches it alongside the document to build a richer project structure.
+        </p>
+
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDraggingVideo(true) }}
+          onDragLeave={() => setDraggingVideo(false)}
+          onDrop={(e) => { e.preventDefault(); setDraggingVideo(false); addVideos(e.dataTransfer.files) }}
+          onClick={() => videoInputRef.current?.click()}
+          className={cn(
+            'flex cursor-pointer flex-col items-center gap-2 rounded-card border-2 border-dashed px-6 py-8 transition-colors',
+            draggingVideo ? 'border-link bg-link/5' : 'border-line bg-paper hover:border-ink/30',
+          )}
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-card ring-1 ring-line">
+            <Video className="h-5 w-5 text-muted" />
+          </span>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-ink">Drop your video brief here</p>
+            <p className="text-xs text-muted">or click to browse</p>
+          </div>
+          <input
+            ref={videoInputRef}
+            type="file"
+            multiple
+            accept="video/*"
+            className="hidden"
+            onChange={(e) => addVideos(e.target.files)}
+          />
         </div>
 
-        <button
-          onClick={simulateFile}
-          className="text-center text-sm font-medium text-link hover:underline"
-        >
-          Use our sample script to explore the feature →
-        </button>
+        {videoBriefs.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {videoBriefs.map((v, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-btn bg-paper px-4 py-3 ring-1 ring-line">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-gold/15 text-[#8A6D00]">
+                  <Video className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-ink">{v.name}</p>
+                  <p className="text-xs text-match">Ready to analyse</p>
+                </div>
+                <button onClick={() => removeVideo(i)} className="text-muted hover:text-ink">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
+
+      <button onClick={useSample} className="text-center text-sm font-medium text-link hover:underline">
+        Use our sample script &amp; brief to explore the feature →
+      </button>
 
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="text-sm font-medium text-muted hover:text-ink">
           ← Back to dashboard
         </button>
-        <Button disabled={!file} icon={<Sparkles className="h-4 w-4" />} onClick={onDone}>
+        <Button disabled={!hasAny} icon={<Sparkles className="h-4 w-4" />} onClick={onDone}>
           Analyse with LIC AI
         </Button>
       </div>
@@ -367,17 +489,18 @@ function StepUpload({ onDone, onBack }: { onDone: () => void; onBack: () => void
 
 // ── Step 2 — Analyzing ────────────────────────────────────────────────────────
 
-function StepAnalyzing({ onDone }: { onDone: () => void }) {
+function StepAnalyzing({ hasVideo, onDone }: { hasVideo: boolean; onDone: () => void }) {
   const [doneSteps, setDoneSteps] = useState<number[]>([])
+  const steps = hasVideo ? ANALYSIS_STEPS_WITH_VIDEO : ANALYSIS_STEPS_DOC_ONLY
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = []
-    ANALYSIS_STEPS.forEach((_, i) => {
+    steps.forEach((_, i) => {
       timers.push(setTimeout(() => setDoneSteps((prev) => [...prev, i]), 400 + i * 500))
     })
-    timers.push(setTimeout(onDone, 400 + ANALYSIS_STEPS.length * 500 + 300))
+    timers.push(setTimeout(onDone, 400 + steps.length * 500 + 300))
     return () => timers.forEach(clearTimeout)
-  }, [onDone])
+  }, [onDone, hasVideo])
 
   return (
     <Card className="flex flex-col items-center gap-8 py-16">
@@ -389,7 +512,7 @@ function StepAnalyzing({ onDone }: { onDone: () => void }) {
             fill="none" stroke="#2563EB" strokeWidth="5" strokeLinecap="round"
             strokeDasharray={`${2 * Math.PI * 34}`}
             initial={{ strokeDashoffset: 2 * Math.PI * 34 }}
-            animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - doneSteps.length / ANALYSIS_STEPS.length) }}
+            animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - doneSteps.length / steps.length) }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
           />
         </svg>
@@ -397,7 +520,7 @@ function StepAnalyzing({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className="flex flex-col items-start gap-3">
-        {ANALYSIS_STEPS.map((label, i) => {
+        {steps.map((label, i) => {
           const done = doneSteps.includes(i)
           const active = doneSteps.length === i
           return (
@@ -428,8 +551,31 @@ function StepAnalyzing({ onDone }: { onDone: () => void }) {
 
 // ── Step 3 — Review extracted data ────────────────────────────────────────────
 
-function StepReview({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+function StepRoles({
+  videoBriefs,
+  onVideoBriefs,
+  roleBriefs,
+  onRoleBrief,
+  roleDocs,
+  onRoleDoc,
+  castingStatus,
+  onCastingStatus,
+  onNext,
+  onBack,
+}: {
+  videoBriefs: VideoBrief[]
+  onVideoBriefs: (v: VideoBrief[]) => void
+  roleBriefs: Record<string, boolean>
+  onRoleBrief: (id: string) => void
+  roleDocs: Record<string, boolean>
+  onRoleDoc: (id: string) => void
+  castingStatus: Record<string, CastingStatus>
+  onCastingStatus: (id: string, s: CastingStatus) => void
+  onNext: () => void
+  onBack: () => void
+}) {
   const toast = useToast()
+  const briefInputRef = useRef<HTMLInputElement>(null)
   const [roles, setRoles] = useState<ExtractedRole[]>(
     extractedRoles.map((r) => ({
       ...r,
@@ -445,6 +591,17 @@ function StepReview({ onNext, onBack }: { onNext: () => void; onBack: () => void
   const [editProjectOpen, setEditProjectOpen] = useState(false)
   const [compensatingId, setCompensatingId] = useState<string | null>(null)
   const [compensationByRole, setCompensationByRole] = useState<Record<string, CompensationData>>({})
+
+  const videoUrl = videoBriefs[0]?.url
+
+  const recordBrief = () =>
+    onVideoBriefs([{ name: 'Director brief (recorded)', url: '/brief-project.mp4' }])
+
+  const uploadBrief = (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const f = files[0]
+    onVideoBriefs([{ name: f.name, url: URL.createObjectURL(f) }])
+  }
 
   const removeRole = (id: string) => {
     setRoles((prev) => prev.filter((r) => r.id !== id))
@@ -475,6 +632,7 @@ function StepReview({ onNext, onBack }: { onNext: () => void; onBack: () => void
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Project card */}
       <Card className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
           <Tag tone="gold" icon={<Sparkles className="h-3 w-3" />}>AI extracted</Tag>
@@ -499,8 +657,56 @@ function StepReview({ onNext, onBack }: { onNext: () => void; onBack: () => void
           <Pencil className="h-3 w-3" />
           Edit project details
         </button>
+
+        {/* Director's brief player */}
+        <div className="flex flex-col gap-1.5 border-t border-line pt-3">
+          <div className="flex items-center justify-between">
+            <span className="tech-label">Director's brief</span>
+            <div className="flex items-center gap-2">
+              <Tag tone={videoUrl ? 'good' : 'neutral'}>{videoUrl ? 'Uploaded' : 'Optional'}</Tag>
+              {videoUrl && (
+                <button onClick={() => onVideoBriefs([])} className="text-xs font-medium text-link hover:underline">
+                  Replace
+                </button>
+              )}
+            </div>
+          </div>
+          {videoUrl ? (
+            <div className="overflow-hidden rounded-btn bg-black ring-1 ring-line" style={{ aspectRatio: '16 / 9' }}>
+              <video
+                src={videoUrl}
+                controls
+                preload="metadata"
+                className="h-full w-full"
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button variant="secondary" icon={<Mic className="h-4 w-4" />} onClick={recordBrief} className="flex-1">
+                Record a brief
+              </Button>
+              <Button
+                variant="secondary"
+                icon={<Upload className="h-4 w-4" />}
+                onClick={() => briefInputRef.current?.click()}
+                className="flex-1"
+              >
+                Upload video
+              </Button>
+              <input
+                ref={briefInputRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => uploadBrief(e.target.files)}
+              />
+            </div>
+          )}
+        </div>
       </Card>
 
+      {/* Roles */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="tech-label">{roles.length} roles extracted</span>
@@ -514,10 +720,16 @@ function StepReview({ onNext, onBack }: { onNext: () => void; onBack: () => void
 
         {roles.map((role, i) => {
           const comp = compensationByRole[role.id]
+          const cs = castingStatus[role.id] ?? 'let-it-cast'
+          const isNotOpened = cs === 'not-opened'
+          const hasBrief = !!roleBriefs[role.id]
+          const hasDoc = !!roleDocs[role.id]
+
           return (
             <motion.div key={role.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-              <Card className="flex flex-col gap-2">
-                <div className="flex items-start justify-between gap-2">
+              <Card className="flex flex-col gap-3">
+                {/* Header row: identity + casting toggle */}
+                <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold text-ink">{role.name}</span>
                     <Tag tone={role.type === 'Lead' ? 'gold' : 'neutral'}>{role.type}</Tag>
@@ -535,26 +747,25 @@ function StepReview({ onNext, onBack }: { onNext: () => void; onBack: () => void
                       </span>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-2">
                     <button
-                      onClick={() => setEditingId(role.id)}
-                      className="flex items-center gap-1 rounded-btn bg-paper px-2.5 py-1 text-xs font-semibold text-ink ring-1 ring-line hover:bg-ink/5"
+                      onClick={() => onCastingStatus(role.id, cs === 'let-it-cast' ? 'not-opened' : 'let-it-cast')}
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-all',
+                        cs === 'let-it-cast'
+                          ? 'border-signal-good/40 bg-signal-good-bg text-signal-good hover:border-signal-good/60'
+                          : 'border-signal-no/40 bg-red-50 text-signal-no hover:border-signal-no/60',
+                      )}
                     >
-                      <Pencil className="h-3 w-3" />
-                      Modify
-                    </button>
-                    <button
-                      onClick={() => setCompensatingId(role.id)}
-                      className="flex items-center gap-1 rounded-btn bg-paper px-2.5 py-1 text-xs font-semibold text-ink ring-1 ring-line hover:bg-ink/5"
-                    >
-                      <DollarSign className="h-3 w-3" />
-                      Compensation
+                      <span className={cn('h-2 w-2 rounded-full', cs === 'let-it-cast' ? 'bg-signal-good' : 'bg-signal-no')} />
+                      {cs === 'let-it-cast' ? 'Let it Cast' : 'Not opened'}
                     </button>
                     <button onClick={() => removeRole(role.id)} className="text-muted hover:text-ink">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
+
                 <p className="text-sm leading-relaxed text-muted">{role.description}</p>
                 <div className="flex flex-wrap gap-1">
                   {role.languages?.map((l) => (
@@ -570,6 +781,68 @@ function StepReview({ onNext, onBack }: { onNext: () => void; onBack: () => void
                     <span key={s} className="rounded-full bg-link/10 px-2 py-0.5 font-mono text-[10px] text-link ring-1 ring-link/20">{s}</span>
                   ))}
                 </div>
+
+                {/* Actions row: Modify · Compensation · Script · Brief */}
+                <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+                  <button
+                    onClick={() => setEditingId(role.id)}
+                    className="flex items-center gap-1 rounded-btn bg-paper px-2.5 py-1.5 text-xs font-semibold text-ink ring-1 ring-line hover:bg-ink/5"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Modify
+                  </button>
+                  <button
+                    onClick={() => setCompensatingId(role.id)}
+                    className="flex items-center gap-1 rounded-btn bg-paper px-2.5 py-1.5 text-xs font-semibold text-ink ring-1 ring-line hover:bg-ink/5"
+                  >
+                    <DollarSign className="h-3.5 w-3.5" />
+                    Compensation
+                  </button>
+
+                  {hasDoc ? (
+                    <span className="flex items-center gap-1 rounded-btn bg-signal-good-bg px-2.5 py-1.5 text-xs font-semibold text-signal-good">
+                      <Check className="h-3.5 w-3.5" /> Script added
+                    </span>
+                  ) : (
+                    <label
+                      className={cn(
+                        'flex items-center gap-1 rounded-btn bg-paper px-2.5 py-1.5 text-xs font-semibold text-ink ring-1 ring-line',
+                        isNotOpened ? 'cursor-not-allowed opacity-40' : 'cursor-pointer hover:bg-ink/5',
+                      )}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Add script
+                      <input
+                        type="file"
+                        multiple
+                        disabled={isNotOpened}
+                        accept=".pdf,.fdx,.fountain,.docx"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (!isNotOpened && e.target.files && e.target.files.length > 0) onRoleDoc(role.id)
+                        }}
+                      />
+                    </label>
+                  )}
+
+                  {hasBrief ? (
+                    <span className="flex items-center gap-1 rounded-btn bg-signal-good-bg px-2.5 py-1.5 text-xs font-semibold text-signal-good">
+                      <Check className="h-3.5 w-3.5" /> Brief recorded
+                    </span>
+                  ) : (
+                    <button
+                      disabled={isNotOpened}
+                      onClick={() => !isNotOpened && onRoleBrief(role.id)}
+                      className={cn(
+                        'flex items-center gap-1 rounded-btn bg-paper px-2.5 py-1.5 text-xs font-semibold text-ink ring-1 ring-line',
+                        isNotOpened ? 'cursor-not-allowed opacity-40' : 'hover:bg-ink/5',
+                      )}
+                    >
+                      <Mic className="h-3.5 w-3.5" />
+                      Add brief
+                    </button>
+                  )}
+                </div>
               </Card>
             </motion.div>
           )
@@ -579,7 +852,7 @@ function StepReview({ onNext, onBack }: { onNext: () => void; onBack: () => void
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="text-sm font-medium text-muted hover:text-ink">← Back</button>
         <Button icon={<ArrowRight className="h-4 w-4" />} onClick={onNext}>
-          Looks good — add briefs
+          Looks good — choose format
         </Button>
       </div>
 
@@ -605,178 +878,7 @@ function StepReview({ onNext, onBack }: { onNext: () => void; onBack: () => void
   )
 }
 
-// ── Step 4 — Video briefs ─────────────────────────────────────────────────────
-
-function StepBriefs({
-  briefRecorded,
-  onBriefRecorded,
-  roleBriefs,
-  onRoleBrief,
-  roleDocs,
-  onRoleDoc,
-  castingStatus,
-  onCastingStatus,
-  onNext,
-  onBack,
-}: {
-  briefRecorded: boolean
-  onBriefRecorded: () => void
-  roleBriefs: Record<string, boolean>
-  onRoleBrief: (id: string) => void
-  roleDocs: Record<string, boolean>
-  onRoleDoc: (id: string) => void
-  castingStatus: Record<string, CastingStatus>
-  onCastingStatus: (id: string, s: CastingStatus) => void
-  onNext: () => void
-  onBack: () => void
-}) {
-  const toast = useToast()
-
-  return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm leading-relaxed text-muted">
-        A video brief gives talent the director's voice and vision before they self-tape.
-        It dramatically improves the quality of submissions.
-      </p>
-
-      {/* Project brief */}
-      <Card className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="tech-label">Project brief</span>
-            <p className="mt-0.5 text-xs text-muted">The director introduces the project and its creative vision.</p>
-          </div>
-          <Tag tone={briefRecorded ? 'good' : 'neutral'}>{briefRecorded ? 'Recorded' : 'Optional'}</Tag>
-        </div>
-
-        {briefRecorded ? (
-          <div className="flex items-center gap-3 rounded-btn bg-paper px-4 py-3 ring-1 ring-line">
-            <span className="flex h-10 w-10 items-center justify-center rounded-btn bg-ink/5">
-              <Play className="ml-0.5 h-4 w-4 text-ink" />
-            </span>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-ink">Les Ombres de Midi — Director brief</p>
-              <p className="font-mono text-xs text-muted">02:38</p>
-            </div>
-            <button onClick={() => toast('Re-recording — bientôt disponible')} className="text-xs font-medium text-link">
-              Re-record
-            </button>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <Button variant="secondary" icon={<Mic className="h-4 w-4" />} onClick={onBriefRecorded} className="flex-1">
-              Record a brief
-            </Button>
-            <Button variant="secondary" icon={<Upload className="h-4 w-4" />} onClick={onBriefRecorded} className="flex-1">
-              Upload video
-            </Button>
-          </div>
-        )}
-      </Card>
-
-      {/* Per-role briefs */}
-      <div className="flex flex-col gap-2">
-        <span className="tech-label">Role briefs</span>
-        {extractedRoles.map((role) => {
-          const cs = castingStatus[role.id] ?? 'let-it-cast'
-          const isNotOpened = cs === 'not-opened'
-          const hasBrief = !!roleBriefs[role.id]
-          const hasDoc = !!roleDocs[role.id]
-
-          return (
-            <Card key={role.id} className="flex flex-col gap-3">
-              {/* Top row: icon + name + casting toggle */}
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-paper ring-1 ring-line">
-                  <Video className="h-4 w-4 text-muted" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-ink">{role.name}</p>
-                  <p className="text-xs text-muted">{role.type} · {role.gender} · {role.age}</p>
-                </div>
-
-                {/* Casting toggle */}
-                <button
-                  onClick={() => onCastingStatus(role.id, cs === 'let-it-cast' ? 'not-opened' : 'let-it-cast')}
-                  className={cn(
-                    'flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-all',
-                    cs === 'let-it-cast'
-                      ? 'border-signal-good/40 bg-signal-good-bg text-signal-good hover:border-signal-good/60'
-                      : 'border-signal-no/40 bg-red-50 text-signal-no hover:border-signal-no/60',
-                  )}
-                >
-                  <span className={cn('h-2 w-2 rounded-full', cs === 'let-it-cast' ? 'bg-signal-good' : 'bg-signal-no')} />
-                  {cs === 'let-it-cast' ? 'Let it Cast' : 'Not opened'}
-                </button>
-              </div>
-
-              {/* Bottom row: doc + brief buttons (disabled when not-opened) */}
-              <div className={cn('flex items-center justify-end gap-2 transition-opacity', isNotOpened && 'opacity-40')}>
-                {hasDoc ? (
-                  <span className="flex items-center gap-1 text-xs font-medium text-match">
-                    <Check className="h-3.5 w-3.5" /> Document added
-                  </span>
-                ) : isNotOpened ? (
-                  <button
-                    disabled
-                    className="flex cursor-not-allowed items-center gap-1 rounded-btn bg-paper px-3 py-1.5 text-xs font-semibold text-ink ring-1 ring-line"
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    Add Script / Document
-                  </button>
-                ) : (
-                  <label className="flex cursor-pointer items-center gap-1 rounded-btn bg-paper px-3 py-1.5 text-xs font-semibold text-ink ring-1 ring-line hover:bg-ink/5">
-                    <FileText className="h-3.5 w-3.5" />
-                    Add Script / Document
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf,.fdx,.fountain,.docx"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files.length > 0) onRoleDoc(role.id)
-                      }}
-                    />
-                  </label>
-                )}
-
-                {hasBrief ? (
-                  <span className="flex items-center gap-1 text-xs font-medium text-match">
-                    <Check className="h-3.5 w-3.5" /> Brief recorded
-                  </span>
-                ) : (
-                  <button
-                    disabled={isNotOpened}
-                    onClick={() => !isNotOpened && onRoleBrief(role.id)}
-                    className={cn(
-                      'flex items-center gap-1 rounded-btn bg-paper px-3 py-1.5 text-xs font-semibold text-ink ring-1 ring-line',
-                      isNotOpened ? 'cursor-not-allowed' : 'hover:bg-ink/5',
-                    )}
-                  >
-                    <Mic className="h-3.5 w-3.5" />
-                    Add brief
-                  </button>
-                )}
-              </div>
-            </Card>
-          )
-        })}
-      </div>
-
-      <div className="flex items-center justify-between">
-        <button onClick={onBack} className="text-sm font-medium text-muted hover:text-ink">← Back</button>
-        <div className="flex items-center gap-3">
-          <button onClick={onNext} className="text-sm font-medium text-muted hover:text-ink">Skip for now →</button>
-          <Button icon={<ArrowRight className="h-4 w-4" />} onClick={onNext}>
-            Briefs ready — next
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Step 5 — Review & format ──────────────────────────────────────────────────
+// ── Step 4 — Format ───────────────────────────────────────────────────────────
 
 const FORMAT_OPTIONS: {
   id: AuditionFormat
@@ -819,117 +921,22 @@ function StepFormat({
   onGlobalFormat,
   roleFormats,
   onRoleFormat,
-  roleBriefs,
-  roleDocs,
   castingStatus,
-  onPublish,
+  onNext,
   onBack,
 }: {
   globalFormat: AuditionFormat
   onGlobalFormat: (f: AuditionFormat) => void
   roleFormats: Record<string, AuditionFormat>
   onRoleFormat: (id: string, f: AuditionFormat) => void
-  roleBriefs: Record<string, boolean>
-  roleDocs: Record<string, boolean>
   castingStatus: Record<string, CastingStatus>
-  onPublish: () => void
+  onNext: () => void
   onBack: () => void
 }) {
-  const toast = useToast()
   const [perRoleOpen, setPerRoleOpen] = useState(false)
 
   return (
     <div className="flex flex-col gap-5">
-
-      {/* ── Summary ────────────────────────────────────────────────────── */}
-      <Card className="flex flex-col gap-4">
-        <span className="tech-label">Casting summary</span>
-
-        {/* Project header */}
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-btn bg-paper text-xl ring-1 ring-line">🎬</span>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-ink">{extractedProject.title}</p>
-            <p className="text-xs text-muted">
-              {extractedProject.type} · {extractedProject.genre} · {extractedProject.location}
-            </p>
-          </div>
-        </div>
-
-        {/* Director's brief video player */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <span className="tech-label">Director's brief</span>
-            <span className="font-mono text-[10px] text-muted">Les Ombres de Midi — Marie Fontaine</span>
-          </div>
-          <div
-            className="overflow-hidden rounded-btn bg-black ring-1 ring-line"
-            style={{ aspectRatio: '16 / 9' }}
-          >
-            <video
-              src="/brief-project.mp4"
-              controls
-              preload="metadata"
-              className="h-full w-full"
-              style={{ objectFit: 'contain' }}
-            />
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="h-px bg-line" />
-
-        {/* Roles summary */}
-        <div className="flex flex-col gap-2">
-          <span className="tech-label">{extractedRoles.length} roles</span>
-          {extractedRoles.map((role) => {
-            const cs = castingStatus[role.id] ?? 'let-it-cast'
-            const hasBrief = !!roleBriefs[role.id]
-            const hasDoc = !!roleDocs[role.id]
-            return (
-              <div
-                key={role.id}
-                className="flex flex-wrap items-center gap-2 rounded-btn border border-line px-3 py-2"
-              >
-                <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{role.name}</span>
-                <Tag tone={role.type === 'Lead' ? 'gold' : 'neutral'}>{role.type}</Tag>
-
-                {/* Casting status */}
-                <span className={cn(
-                  'flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-bold',
-                  cs === 'let-it-cast'
-                    ? 'bg-signal-good-bg text-signal-good'
-                    : 'bg-red-50 text-signal-no',
-                )}>
-                  <span className={cn('h-1.5 w-1.5 rounded-full', cs === 'let-it-cast' ? 'bg-signal-good' : 'bg-signal-no')} />
-                  {cs === 'let-it-cast' ? 'Let it Cast' : 'Not opened'}
-                </span>
-
-                {/* Document */}
-                {hasDoc ? (
-                  <span className="flex items-center gap-1 rounded-btn bg-paper px-2 py-0.5 text-[11px] font-semibold text-ink ring-1 ring-line">
-                    <FileText className="h-3 w-3" /> Doc
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-muted">No doc</span>
-                )}
-
-                {/* Brief */}
-                {hasBrief ? (
-                  <button
-                    onClick={() => toast('Lecture du brief — bientôt disponible')}
-                    className="flex items-center gap-1 rounded-btn bg-paper px-2 py-0.5 text-[11px] font-semibold text-ink ring-1 ring-line hover:bg-ink/5"
-                  >
-                    <Play className="h-3 w-3" /> Brief
-                  </button>
-                ) : (
-                  <span className="text-[11px] text-muted">No brief</span>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </Card>
 
       {/* ── Global audition format ──────────────────────────────────────── */}
       <div className="flex flex-col gap-3">
@@ -1040,6 +1047,143 @@ function StepFormat({
           )}
         </AnimatePresence>
       </div>
+
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="text-sm font-medium text-muted hover:text-ink">← Back</button>
+        <Button icon={<ArrowRight className="h-4 w-4" />} onClick={onNext}>
+          Next — review &amp; publish
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Step 5 — Publish ──────────────────────────────────────────────────────────
+
+function StepPublish({
+  videoBriefs,
+  roleBriefs,
+  roleDocs,
+  castingStatus,
+  globalFormat,
+  roleFormats,
+  onPublish,
+  onBack,
+}: {
+  videoBriefs: VideoBrief[]
+  roleBriefs: Record<string, boolean>
+  roleDocs: Record<string, boolean>
+  castingStatus: Record<string, CastingStatus>
+  globalFormat: AuditionFormat
+  roleFormats: Record<string, AuditionFormat>
+  onPublish: () => void
+  onBack: () => void
+}) {
+  const toast = useToast()
+  const videoUrl = videoBriefs[0]?.url
+
+  return (
+    <div className="flex flex-col gap-5">
+
+      {/* ── Summary ────────────────────────────────────────────────────── */}
+      <Card className="flex flex-col gap-4">
+        <span className="tech-label">Casting summary</span>
+
+        {/* Project header */}
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-btn bg-paper text-xl ring-1 ring-line">🎬</span>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-ink">{extractedProject.title}</p>
+            <p className="text-xs text-muted">
+              {extractedProject.type} · {extractedProject.genre} · {extractedProject.location}
+            </p>
+          </div>
+        </div>
+
+        {/* Director's brief video player */}
+        {videoUrl && (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <span className="tech-label">Director's brief</span>
+              <span className="font-mono text-[10px] text-muted">{extractedProject.title} — {extractedProject.director}</span>
+            </div>
+            <div
+              className="overflow-hidden rounded-btn bg-black ring-1 ring-line"
+              style={{ aspectRatio: '16 / 9' }}
+            >
+              <video
+                src={videoUrl}
+                controls
+                preload="metadata"
+                className="h-full w-full"
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Divider */}
+        <div className="h-px bg-line" />
+
+        {/* Roles summary */}
+        <div className="flex flex-col gap-2">
+          <span className="tech-label">{extractedRoles.length} roles</span>
+          {extractedRoles.map((role) => {
+            const cs = castingStatus[role.id] ?? 'let-it-cast'
+            const hasBrief = !!roleBriefs[role.id]
+            const hasDoc = !!roleDocs[role.id]
+            const format = roleFormats[role.id] ?? globalFormat
+            return (
+              <div
+                key={role.id}
+                className="flex flex-wrap items-center gap-2 rounded-btn border border-line px-3 py-2"
+              >
+                <span className="min-w-0 flex-1 text-sm font-semibold text-ink">{role.name}</span>
+                <Tag tone={role.type === 'Lead' ? 'gold' : 'neutral'}>{role.type}</Tag>
+
+                {/* Casting status */}
+                <span className={cn(
+                  'flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-bold',
+                  cs === 'let-it-cast'
+                    ? 'bg-signal-good-bg text-signal-good'
+                    : 'bg-red-50 text-signal-no',
+                )}>
+                  <span className={cn('h-1.5 w-1.5 rounded-full', cs === 'let-it-cast' ? 'bg-signal-good' : 'bg-signal-no')} />
+                  {cs === 'let-it-cast' ? 'Let it Cast' : 'Not opened'}
+                </span>
+
+                {/* Format */}
+                {cs === 'let-it-cast' && (
+                  <span className="rounded-btn bg-paper px-2 py-0.5 text-[11px] font-semibold text-ink ring-1 ring-line">
+                    {FORMAT_LABELS[format]}
+                  </span>
+                )}
+
+                {/* Document */}
+                {hasDoc ? (
+                  <span className="flex items-center gap-1 rounded-btn bg-paper px-2 py-0.5 text-[11px] font-semibold text-ink ring-1 ring-line">
+                    <FileText className="h-3 w-3" /> Doc
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-muted">No doc</span>
+                )}
+
+                {/* Brief */}
+                {hasBrief ? (
+                  <button
+                    onClick={() => toast('Lecture du brief — bientôt disponible')}
+                    className="flex items-center gap-1 rounded-btn bg-paper px-2 py-0.5 text-[11px] font-semibold text-ink ring-1 ring-line hover:bg-ink/5"
+                  >
+                    <Play className="h-3 w-3" /> Brief
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-muted">No brief</span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </Card>
 
       {/* ── Summary banner ─────────────────────────────────────────────── */}
       <Card className="flex items-start gap-3 bg-ink text-white">
