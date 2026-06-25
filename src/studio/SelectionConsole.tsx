@@ -1015,7 +1015,7 @@ function ListView({
             </span>
 
             {/* photo */}
-            <Avatar src={c.avatar ? asset(c.avatar) : undefined} name={c.name} size="md" />
+            <Avatar src={c.avatar} name={c.name} size="md" />
 
             {/* role + name */}
             <div className="min-w-0">
@@ -1425,7 +1425,7 @@ function CandidateCard({
       )}
 
       <div className="flex items-center gap-2">
-        <Avatar src={candidate.avatar ? asset(candidate.avatar) : undefined} name={candidate.name} size="sm" />
+        <Avatar src={candidate.avatar} name={candidate.name} size="sm" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-ink">{candidate.name}</p>
           <p className="truncate text-[11px] text-muted">
