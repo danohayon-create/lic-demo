@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
 import { X, ChevronLeft, ChevronRight, Camera } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { asset } from '@/lib/asset'
 
 const TIPS = [
   { image: '/snapapply/tip1.png', text: "Don't procrastinate. Submitting on time matters more than perfection." },
@@ -85,7 +86,7 @@ export function SnapApplyTips() {
           >
             <span className="font-mono text-xs font-semibold text-white/50">TIP {step + 1}/{total}</span>
             <div className="w-full overflow-hidden rounded-2xl bg-white">
-              <img src={TIPS[step].image} alt={`Snap Apply Tip ${step + 1}`} className="aspect-square w-full select-none object-contain" draggable={false} />
+              <img src={asset(TIPS[step].image)} alt={`Snap Apply Tip ${step + 1}`} className="aspect-square w-full select-none object-contain" draggable={false} />
             </div>
             <p className="text-center text-base leading-relaxed text-white/90">{TIPS[step].text}</p>
           </motion.div>

@@ -28,6 +28,7 @@ import {
   type ActivityItem,
 } from '@/data'
 import { useProjectCasting, ROLE_CASTING_DEFAULTS } from '@/data/castingState'
+import { asset } from '@/lib/asset'
 import {
   useRoleCandidates,
   useRoleStatus,
@@ -202,7 +203,7 @@ function Sidebar({ activeId, onNewCasting }: { activeId: string; onNewCasting: (
                 >
                   {p.poster && (
                     <img
-                      src={p.poster}
+                      src={asset(p.poster)}
                       alt={p.title}
                       className="h-8 w-8 shrink-0 rounded object-cover ring-1 ring-line"
                     />
@@ -267,7 +268,7 @@ function ProjectHeader({
     <Card className="flex flex-col gap-4 sm:flex-row sm:items-center">
       {project.poster ? (
         <img
-          src={project.poster}
+          src={asset(project.poster)}
           alt={project.title}
           className="h-20 w-20 shrink-0 rounded-btn object-cover ring-1 ring-line"
         />

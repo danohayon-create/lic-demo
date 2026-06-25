@@ -1,4 +1,5 @@
 import { cn } from '@/lib/cn'
+import { asset } from '@/lib/asset'
 
 type Size = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 
@@ -43,7 +44,7 @@ export function Avatar({ src, name, size = 'md', ring, className }: AvatarProps)
       )}
     >
       {src ? (
-        <img src={src} alt={name} className="h-full w-full object-cover" />
+        <img src={asset(src)} alt={name} className="h-full w-full object-cover" />
       ) : (
         <span aria-label={name}>{initials(name)}</span>
       )}

@@ -17,6 +17,7 @@ import { Card, Avatar, Button, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import { cn } from '@/lib/cn'
 import { projects, projectsById, team, teamByInitials } from '@/data'
+import { asset } from '@/lib/asset'
 
 // ── Demo content — a narrative "session" snapshot, independent of the live
 //    per-project KPIs shown on each project's own Dashboard ───────────────────
@@ -355,7 +356,7 @@ function CommandSidebar({ scenario }: { scenario: Scenario }) {
                   {/* Poster thumbnail */}
                   {project?.poster && (
                     <img
-                      src={project.poster}
+                      src={asset(project.poster)}
                       alt={b.label}
                       className="h-9 w-9 shrink-0 rounded object-cover ring-1 ring-line"
                     />

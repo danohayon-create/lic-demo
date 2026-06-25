@@ -4,6 +4,7 @@ import { X, Crop, ChevronRight, Check, Send, RotateCcw, Zap, BookOpen, Mic, Pers
 import { cn } from '@/lib/cn'
 import { useToast } from '@/components/Toast'
 import { discoverCastingsById, sidesById, type SideLine } from '@/data'
+import { asset } from '@/lib/asset'
 
 // ── Self-tape types ──────────────────────────────────────────────────────────
 
@@ -204,7 +205,7 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
           style={{ aspectRatio: ratio }}
         >
           {camError ? (
-            <video src="/media/selftape.mp4" autoPlay loop muted playsInline className="h-full w-full object-cover" />
+            <video src={asset("/media/selftape.mp4")} autoPlay loop muted playsInline className="h-full w-full object-cover" />
           ) : (
             <video ref={videoRef} autoPlay muted playsInline className="h-full w-full -scale-x-100 object-cover" />
           )}

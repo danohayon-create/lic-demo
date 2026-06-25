@@ -1,4 +1,5 @@
 import { cn } from '@/lib/cn'
+import { asset } from '@/lib/asset'
 
 type LogoProps = {
   /** Show only the 3-square mark, without the wordmark. */
@@ -12,7 +13,7 @@ export function Logo({ markOnly = false, size = 26, className }: LogoProps) {
   return (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
       <img
-        src="/logo-mark.svg"
+        src={asset('/logo-mark.svg')}
         alt="Let It Cast mark"
         width={size}
         height={size}

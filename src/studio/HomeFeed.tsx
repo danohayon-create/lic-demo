@@ -18,6 +18,7 @@ import {
 import { Card, Avatar, Button, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import { cn } from '@/lib/cn'
+import { asset } from '@/lib/asset'
 import {
   mayaProfile,
   mayaGroups,
@@ -209,7 +210,7 @@ function PostCard({ post }: { post: FeedPost }) {
       {post.video && (
         <div className="overflow-hidden rounded-btn border border-line bg-black">
           <video
-            src={post.video}
+            src={asset(post.video)}
             controls
             autoPlay
             muted
@@ -222,7 +223,7 @@ function PostCard({ post }: { post: FeedPost }) {
       )}
       {!post.video && post.image && (
         <div className="overflow-hidden rounded-btn border border-line">
-          <img src={post.image} alt="" className="aspect-[16/9] w-full object-cover" />
+          <img src={asset(post.image)} alt="" className="aspect-[16/9] w-full object-cover" />
         </div>
       )}
 

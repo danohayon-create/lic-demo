@@ -4,6 +4,7 @@ import { Card, Avatar, Button } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { projectsById, rolesByProject, type Role } from '@/data'
 import { useRoleCandidates, candidateScore, shortlistedCountForRole } from '@/data/selection'
+import { asset } from '@/lib/asset'
 
 export function Wall() {
   const navigate = useNavigate()
@@ -24,7 +25,7 @@ export function Wall() {
         </button>
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {project.poster ? (
-            <img src={project.poster} alt={project.title} className="h-10 w-10 shrink-0 rounded-btn object-cover ring-1 ring-line" />
+            <img src={asset(project.poster)} alt={project.title} className="h-10 w-10 shrink-0 rounded-btn object-cover ring-1 ring-line" />
           ) : (
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn bg-paper text-lg ring-1 ring-line">🎬</span>
           )}

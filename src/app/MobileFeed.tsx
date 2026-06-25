@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn'
 import { feedPosts } from '@/data/feed'
 import { useToast } from '@/components/Toast'
 import type { FeedPost } from '@/data/types'
+import { asset } from '@/lib/asset'
 
 
 export function MobileFeed() {
@@ -67,9 +68,9 @@ function FeedCard({ post: p }: { post: FeedPost }) {
 
       {/* media */}
       {p.video ? (
-        <VideoThumb src={p.video} poster={p.image} />
+        <VideoThumb src={p.video} poster={asset(p.image)} />
       ) : p.image ? (
-        <img src={p.image} alt="" className="w-full rounded-xl object-cover max-h-52" />
+        <img src={asset(p.image)} alt="" className="w-full rounded-xl object-cover max-h-52" />
       ) : null}
 
       {/* banner */}
@@ -114,7 +115,7 @@ function AuthorAvatar({ author }: { author: FeedPost['author'] }) {
   if (author.avatar) {
     return (
       <img
-        src={author.avatar}
+        src={asset(author.avatar)}
         alt={author.name}
         className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-line"
       />

@@ -5,6 +5,7 @@ import { useToast } from '@/components/Toast'
 import { AppHeader } from './AppHeader'
 import { colors } from '@/styles/tokens'
 import { mayaProfile, mayaReel, type PerfColor, type ReelClip } from '@/data'
+import { asset } from '@/lib/asset'
 
 const barColor: Record<PerfColor, string> = {
   gold: colors.gold,
@@ -128,7 +129,7 @@ function ReelTile({ clip }: { clip: ReelClip }) {
     <div className="relative aspect-[3/4] overflow-hidden rounded-btn border border-line bg-black">
       <video
         ref={ref}
-        src={clip.video}
+        src={asset(clip.video)}
         playsInline
         preload="metadata"
         className="h-full w-full object-cover"

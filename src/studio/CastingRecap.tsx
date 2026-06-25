@@ -6,6 +6,7 @@ import { projectsById, rolesByProject } from '@/data'
 import { useProjectCasting, ROLE_CASTING_DEFAULTS, type AuditionFormat, type RoleCastingStatus } from '@/data/castingState'
 import { cn } from '@/lib/cn'
 import { Stepper, WORKFLOW_STEPS } from './NewCasting'
+import { asset } from '@/lib/asset'
 
 const FORMAT_META: Record<AuditionFormat, { label: string; icon: React.ReactNode; desc: string; color: string }> = {
   'open-call': {
@@ -90,7 +91,7 @@ export function CastingRecap() {
         <div className="flex items-center gap-4">
           {project.poster ? (
             <img
-              src={project.poster}
+              src={asset(project.poster)}
               alt={project.title}
               className="h-20 w-20 shrink-0 rounded-btn object-cover ring-1 ring-line"
             />
@@ -112,7 +113,7 @@ export function CastingRecap() {
           <span className="tech-label">Director's brief</span>
           <div className="overflow-hidden rounded-btn bg-black ring-1 ring-line" style={{ aspectRatio: '16 / 9' }}>
             <video
-              src="/brief-project.mp4"
+              src={asset("/brief-project.mp4")}
               controls
               preload="metadata"
               className="h-full w-full"

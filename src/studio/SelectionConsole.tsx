@@ -43,6 +43,7 @@ import {
 } from '@/data/selection'
 import { useSavedSearches, saveSearch, deleteSearch, type SavedSearchFilters } from '@/data/savedSearches'
 import { Player } from './Review'
+import { asset } from '@/lib/asset'
 
 type ViewMode = 'kanban' | 'list' | 'wall'
 
@@ -282,7 +283,7 @@ export function SelectionConsole() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           {project.poster ? (
             <img
-              src={project.poster}
+              src={asset(project.poster)}
               alt={project.title}
               className="h-24 w-24 shrink-0 rounded-btn object-cover ring-1 ring-line"
             />
@@ -1350,7 +1351,7 @@ function WatchModal({
           </button>
         </div>
 
-        <Player key={candidate.id} src={candidate.video} />
+        <Player key={candidate.id} src={asset(candidate.video)} />
 
         <div className="flex items-center justify-between gap-3">
           <button

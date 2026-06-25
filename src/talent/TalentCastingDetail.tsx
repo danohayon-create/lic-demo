@@ -10,6 +10,7 @@ import { useToast } from '@/components/Toast'
 import { cn } from '@/lib/cn'
 import { projectsById, rolesByProject, sidesById, roleBriefVideo } from '@/data'
 import type { Role, Sides } from '@/data/types'
+import { asset } from '@/lib/asset'
 
 export function TalentCastingDetail() {
   const { projectId = '' } = useParams()
@@ -37,7 +38,7 @@ export function TalentCastingDetail() {
         {/* poster banner */}
         {project.poster && (
           <div className="h-40 w-full overflow-hidden bg-ink/10">
-            <img src={project.poster} alt="" className="h-full w-full object-cover opacity-60" />
+            <img src={asset(project.poster)} alt="" className="h-full w-full object-cover opacity-60" />
             <div className="absolute inset-0 h-40 bg-gradient-to-b from-transparent to-card" />
           </div>
         )}
@@ -239,7 +240,7 @@ function BriefPlayer({ poster }: { poster?: string }) {
     <div className="relative aspect-video overflow-hidden rounded-btn border border-line bg-black">
       <video
         ref={ref}
-        src={roleBriefVideo}
+        src={asset(roleBriefVideo)}
         poster={poster}
         playsInline
         preload="metadata"

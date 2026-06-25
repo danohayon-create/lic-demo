@@ -21,6 +21,7 @@ import { EditModal, Field, TextInput, TextArea, Select } from '@/components/Edit
 import { useToast } from '@/components/Toast'
 import { cn } from '@/lib/cn'
 import { colors } from '@/styles/tokens'
+import { asset } from '@/lib/asset'
 import {
   mayaProfile,
   type PerfColor,
@@ -194,7 +195,7 @@ export function TalentProfilePage() {
         {/* identity card */}
         <Card flush className="overflow-hidden">
           <div className="group relative h-40 w-full bg-line">
-            {p.coverImage && <img src={p.coverImage} alt="" className="h-full w-full object-cover" />}
+            {p.coverImage && <img src={asset(p.coverImage)} alt="" className="h-full w-full object-cover" />}
             <button
               onClick={() => setEditCover(true)}
               className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-card/90 text-ink opacity-0 shadow-card transition-opacity group-hover:opacity-100"
@@ -474,7 +475,7 @@ export function TalentProfilePage() {
                   </div>
                 </div>
                 <p className="text-sm text-ink/90">{post.text}</p>
-                {post.image && <img src={post.image} alt="" className="rounded-btn border border-line object-cover" />}
+                {post.image && <img src={asset(post.image)} alt="" className="rounded-btn border border-line object-cover" />}
                 <p className="text-xs text-muted">
                   {post.likes} likes · {post.comments} comments
                 </p>
@@ -785,12 +786,12 @@ function MediaTile({ item, onRemove }: { item: MediaItem; onRemove: () => void }
   return (
     <div className="group relative aspect-square overflow-hidden rounded-btn border border-line bg-black">
       {item.kind === 'photo' ? (
-        <img src={item.src} alt={item.caption ?? ''} className="h-full w-full object-cover" />
+        <img src={asset(item.src)} alt={item.caption ?? ''} className="h-full w-full object-cover" />
       ) : (
         <>
           <video
             ref={ref}
-            src={item.src}
+            src={asset(item.src)}
             playsInline
             preload="metadata"
             className="h-full w-full object-cover"

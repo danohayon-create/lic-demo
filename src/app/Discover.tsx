@@ -6,6 +6,7 @@ import { useToast } from '@/components/Toast'
 import { AppHeader } from './AppHeader'
 import { cn } from '@/lib/cn'
 import { mayaProfile, discoverCastings, projectsById, type DiscoverCasting } from '@/data'
+import { asset } from '@/lib/asset'
 
 const filters = ['New', 'Near me', 'Film', 'TV']
 
@@ -74,7 +75,7 @@ function FeaturedCard() {
 
   return (
     <div className="relative overflow-hidden rounded-card">
-      <img src={project.poster} alt={project.title} className="h-56 w-full object-cover" />
+      <img src={asset(project.poster)} alt={project.title} className="h-56 w-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/60 to-ink/10" />
 
       <div className="absolute inset-x-0 top-0 flex items-start justify-between p-4">

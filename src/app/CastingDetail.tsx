@@ -3,6 +3,7 @@ import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { ArrowLeft, Share2, MoreHorizontal, Play, Zap, Sparkles, CheckCircle2 } from 'lucide-react'
 import { Card, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
+import { asset } from '@/lib/asset'
 import {
   discoverCastingsById,
   projectsById,
@@ -144,7 +145,7 @@ function SubmissionCard({ role, year }: { role: string; year?: string }) {
       <div className="relative aspect-video overflow-hidden rounded-btn bg-black">
         <video
           ref={ref}
-          src="/media/audition.mp4"
+          src={asset("/media/audition.mp4")}
           playsInline
           preload="metadata"
           className="h-full w-full object-cover"
@@ -186,7 +187,7 @@ function BriefPlayer({ poster }: { poster?: string }) {
     <div className="relative aspect-video overflow-hidden rounded-card border border-line bg-black">
       <video
         ref={ref}
-        src={roleBriefVideo}
+        src={asset(roleBriefVideo)}
         poster={poster}
         playsInline
         preload="metadata"

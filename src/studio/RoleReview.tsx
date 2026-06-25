@@ -16,6 +16,7 @@ import {
   type Candidate,
 } from '@/data/selection'
 import { Player, Transcript } from './Review'
+import { asset } from '@/lib/asset'
 
 const ratingOptions = [
   { key: 'no' as const,    label: 'No go',      icon: X,
@@ -133,7 +134,7 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
       {/* player + decision */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex flex-col gap-4">
-          <Player key={candidate.id} src={candidate.video} />
+          <Player key={candidate.id} src={asset(candidate.video)} />
           <Transcript />
         </div>
         <RoleDecisionPanel key={candidate.id} candidate={candidate} reviewed={reviewed} />

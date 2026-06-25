@@ -4,6 +4,7 @@ import { Clock, MapPin, Video, Zap } from 'lucide-react'
 import { Card, Button } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { discoverCastings, mayaProfile, type DiscoverCasting } from '@/data'
+import { asset } from '@/lib/asset'
 
 const filters = ['Tous', 'En cours', 'Terminés', 'Film', 'TV']
 
@@ -67,7 +68,7 @@ function CastingCard({ casting: c }: { casting: DiscoverCasting }) {
       {/* poster */}
       <div className="relative h-32 w-full overflow-hidden bg-ink/10">
         {c.poster ? (
-          <img src={c.poster} alt={c.title} className="h-full w-full object-cover" />
+          <img src={asset(c.poster)} alt={c.title} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-ink/30">
             {c.title[0]}

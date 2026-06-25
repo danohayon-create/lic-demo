@@ -26,6 +26,7 @@ import { useToast } from '@/components/Toast'
 import { Skeleton, useBriefLoading } from '@/components/Skeleton'
 import { cn } from '@/lib/cn'
 import { talents, projectsById, rolesByProject, type Talent, type SearchFilter } from '@/data'
+import { asset } from '@/lib/asset'
 import {
   useProjectCasting,
   setRoleCastingStatus,
@@ -211,7 +212,7 @@ export function CastingSearch() {
         <div className="flex items-center gap-3">
           {project.poster ? (
             <img
-              src={project.poster}
+              src={asset(project.poster)}
               alt={project.title}
               className="h-16 w-16 shrink-0 rounded-btn object-cover ring-1 ring-line"
             />
