@@ -113,10 +113,20 @@ const ANALYSIS_STEPS_NON_SCRIPTED_VIDEO = [
   'Generating casting brief…',
 ]
 
-/** The 5-step casting workflow labels, indexed by format. */
+/** The casting workflow labels, indexed by format. */
 const WORKFLOW_STEPS: Record<'scripted' | 'non_scripted', string[]> = {
   scripted:     ['Document', 'Analyse', 'Roles',      'Format', 'Publish'],
-  non_scripted: ['Brief',    'Analyse', 'Contestants', 'Format', 'Publish'],
+  non_scripted: ['Brief',    'Analyse', 'Contestants', 'Format', 'Publish', 'Match'],
+}
+
+const nonScriptedProject = {
+  title: 'MasterChef US — Season 17',
+  type: 'Reality TV',
+  genre: 'Cooking Competition',
+  company: 'Banijay US',
+  location: 'Los Angeles',
+  shooting: 'Nov 2026–Feb 2027',
+  synopsis: "MasterChef US returns for a seventeenth season, searching across the country for the nation's most passionate home cooks. No professional chefs — just extraordinary everyday people with an obsession for food.",
 }
 /** Legacy export kept for any external imports. */
 export const WORKFLOW_STEPS_SCRIPTED = WORKFLOW_STEPS.scripted
@@ -175,6 +185,9 @@ export function NewCasting() {
   const [roleFormats, setRoleFormats] = useState<Record<string, AuditionFormat>>({})
   const [contestantCount, setContestantCount] = useState(10)
   const [contestantProfile, setContestantProfile] = useState('')
+  const [selfTapeDocs, setSelfTapeDocs] = useState<UploadedDoc[]>([])
+  const [selfTapeVideo, setSelfTapeVideo] = useState<VideoBrief | null>(null)
+  const [nsCompensation, setNsCompensation] = useState<CompensationData | null>(null)
 
   const goBack = () => {
     if (castingFormat === null) {
@@ -183,6 +196,9 @@ export function NewCasting() {
       setCastingFormat(null)
     } else if (step === 3) {
       setStep(1) // skip step 2 (auto-advanced)
+    } else if (step === 6 && castingFormat === 'non_scripted') {
+      // from recap, back goes to publish
+      setStep(5)
     } else {
       setStep((s) => s - 1)
     }
@@ -207,7 +223,7 @@ export function NewCasting() {
 
   const publishNonScripted = () => {
     toast(`Casting published! ${contestantCount} contestant slots created.`)
-    navigate('/studio/selection?p=masterchef-australia-s17&view=wall')
+    setStep(6)
   }
 
   const headingFor = (s: number) => {
@@ -215,7 +231,8 @@ export function NewCasting() {
       if (s <= 2) return 'Import your show brief'
       if (s === 3) return 'Configure contestant slots'
       if (s === 4) return 'Choose audition format'
-      return 'Publish your casting'
+      if (s === 5) return 'Publish your casting'
+      return 'Launch matching'
     }
     if (s <= 2) return 'Import your project material'
     if (s === 3) return 'Review & configure roles'
@@ -292,6 +309,10 @@ export function NewCasting() {
               onCount={setContestantCount}
               profile={contestantProfile}
               onProfile={setContestantProfile}
+              selfTapeDocs={selfTapeDocs}
+              onSelfTapeDocs={setSelfTapeDocs}
+              selfTapeVideo={selfTapeVideo}
+              onSelfTapeVideo={setSelfTapeVideo}
               onNext={() => setStep(4)}
               onBack={goBack}
             />
@@ -325,7 +346,19 @@ export function NewCasting() {
               contestantCount={contestantCount}
               profile={contestantProfile}
               globalFormat={globalFormat}
+              videoBriefs={videoBriefs}
+              selfTapeDocs={selfTapeDocs}
+              selfTapeVideo={selfTapeVideo}
+              compensation={nsCompensation}
+              onCompensation={setNsCompensation}
               onPublish={publishNonScripted}
+              onBack={goBack}
+            />
+          )}
+          {step === 6 && castingFormat === 'non_scripted' && (
+            <StepRecapNonScripted
+              contestantCount={contestantCount}
+              globalFormat={globalFormat}
               onBack={goBack}
             />
           )}
@@ -1215,6 +1248,10 @@ function StepCandidates({
   onCount,
   profile,
   onProfile,
+  selfTapeDocs,
+  onSelfTapeDocs,
+  selfTapeVideo,
+  onSelfTapeVideo,
   onNext,
   onBack,
 }: {
@@ -1222,10 +1259,40 @@ function StepCandidates({
   onCount: (n: number) => void
   profile: string
   onProfile: (s: string) => void
+  selfTapeDocs: UploadedDoc[]
+  onSelfTapeDocs: (docs: UploadedDoc[]) => void
+  selfTapeVideo: VideoBrief | null
+  onSelfTapeVideo: (v: VideoBrief | null) => void
   onNext: () => void
   onBack: () => void
 }) {
+  const docInputRef  = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
+  const [draggingDoc, setDraggingDoc] = useState(false)
+  const [draggingVideo, setDraggingVideo] = useState(false)
+
+  const formatSize = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+
+  const addDocs = (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const added = Array.from(files).map((f) => ({ name: `${f.name} · ${formatSize(f.size)}` }))
+    onSelfTapeDocs([...selfTapeDocs, ...added])
+  }
+
+  const addVideo = (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const f = files[0]
+    onSelfTapeVideo({ name: `${f.name} · ${formatSize(f.size)}`, url: URL.createObjectURL(f) })
+  }
+
+  const useSampleDoc = () =>
+    onSelfTapeDocs([...selfTapeDocs, { name: 'contestant_brief_mc17.pdf · 3.4 MB' }])
+
+  const useSampleVideo = () =>
+    onSelfTapeVideo({ name: 'masterchef_s17_selftape_guide.mp4 · 18.2 MB', url: '/brief-project.mp4' })
+
   const slots = Array.from({ length: count }, (_, i) => `Contestant ${i + 1}`)
+
   return (
     <div className="flex flex-col gap-5">
       {/* Count picker */}
@@ -1266,7 +1333,6 @@ function StepCandidates({
           className="w-full accent-ink"
         />
 
-        {/* Preview slots */}
         <div className="flex flex-wrap gap-1.5">
           {slots.map((s) => (
             <span key={s} className="rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-muted ring-1 ring-line">
@@ -1276,7 +1342,7 @@ function StepCandidates({
         </div>
       </Card>
 
-      {/* Contestant profile */}
+      {/* Contestant profile text */}
       <Card className="flex flex-col gap-3">
         <span className="tech-label">Contestant profile</span>
         <p className="text-sm text-muted">
@@ -1286,16 +1352,127 @@ function StepCandidates({
           value={profile}
           onChange={(e) => onProfile(e.target.value)}
           rows={4}
-          placeholder="e.g. Passionate home cooks of all ages and backgrounds, with a strong personal food story. No professional chefs. Must be available for 3 months in Melbourne…"
+          placeholder="e.g. Passionate home cooks of all ages and backgrounds, with a strong personal food story. No professional chefs. Must be available for 3 months in Los Angeles…"
           className="w-full resize-none rounded-card border border-line bg-paper px-3.5 py-3 text-sm text-ink placeholder:text-muted/60 outline-none focus:border-ink/30 focus:ring-1 focus:ring-ink/10"
         />
         {profile.trim() === '' && (
           <button
-            onClick={() => onProfile("Passionate home cooks of all ages and backgrounds, with a distinctive personal food story and genuine culinary skill. No professional chefs. Energetic on-camera presence. Must be available for filming Oct–Jan in Melbourne.")}
+            onClick={() => onProfile("Passionate home cooks of all ages and backgrounds, with a distinctive personal food story and genuine culinary skill. No professional chefs. Energetic on-camera presence. Must be available for filming Oct–Jan in Los Angeles.")}
             className="self-start text-xs font-medium text-link hover:underline"
           >
             Use MasterChef S17 sample profile →
           </button>
+        )}
+      </Card>
+
+      {/* Self-tape brief documents */}
+      <Card className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-1">
+          <span className="tech-label">Self-tape brief documents</span>
+          <span className="text-xs text-muted">PDF, Word — one per contestant type, multiple allowed</span>
+        </div>
+        <p className="text-xs leading-relaxed text-muted">
+          Upload the document(s) contestants will receive and read before recording their self-tape. You can upload multiple documents for different contestant profiles.
+        </p>
+
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDraggingDoc(true) }}
+          onDragLeave={() => setDraggingDoc(false)}
+          onDrop={(e) => { e.preventDefault(); setDraggingDoc(false); addDocs(e.dataTransfer.files) }}
+          onClick={() => docInputRef.current?.click()}
+          className={cn(
+            'flex cursor-pointer flex-col items-center gap-2 rounded-card border-2 border-dashed px-6 py-6 transition-colors',
+            draggingDoc ? 'border-link bg-link/5' : 'border-line bg-paper hover:border-ink/30',
+          )}
+        >
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-card ring-1 ring-line">
+            <FileText className="h-4 w-4 text-muted" />
+          </span>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-ink">Drop contestant brief document here</p>
+            <p className="text-xs text-muted">or click to browse — max 50 MB per file</p>
+          </div>
+          <input
+            ref={docInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.docx,.doc"
+            className="hidden"
+            onChange={(e) => addDocs(e.target.files)}
+          />
+        </div>
+
+        {selfTapeDocs.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {selfTapeDocs.map((d, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-btn bg-paper px-4 py-3 ring-1 ring-line">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-btn bg-link/10 text-link">
+                  <FileText className="h-3.5 w-3.5" />
+                </span>
+                <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{d.name}</p>
+                <button onClick={() => onSelfTapeDocs(selfTapeDocs.filter((_, idx) => idx !== i))} className="text-muted hover:text-ink">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {selfTapeDocs.length === 0 && (
+          <button onClick={useSampleDoc} className="self-start text-xs font-medium text-link hover:underline">
+            Use MasterChef S17 sample brief document →
+          </button>
+        )}
+      </Card>
+
+      {/* Production video for contestants */}
+      <Card className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-1">
+          <span className="tech-label">Production video for contestants</span>
+          <span className="text-xs text-muted">MP4, MOV — max 500 MB</span>
+        </div>
+        <p className="text-xs leading-relaxed text-muted">
+          Optional: a short video from the production team that contestants will watch before recording their self-tape. Helps set the tone and expectations.
+        </p>
+
+        {selfTapeVideo ? (
+          <div className="flex flex-col gap-2">
+            <div className="overflow-hidden rounded-btn bg-black ring-1 ring-line" style={{ aspectRatio: '16 / 9' }}>
+              <video src={selfTapeVideo.url} controls preload="metadata" className="h-full w-full" style={{ objectFit: 'contain' }} />
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted">{selfTapeVideo.name}</p>
+              <button onClick={() => onSelfTapeVideo(null)} className="text-xs font-medium text-link hover:underline">Replace</button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDraggingVideo(true) }}
+              onDragLeave={() => setDraggingVideo(false)}
+              onDrop={(e) => { e.preventDefault(); setDraggingVideo(false); addVideo(e.dataTransfer.files) }}
+              onClick={() => videoInputRef.current?.click()}
+              className={cn(
+                'flex cursor-pointer flex-col items-center gap-2 rounded-card border-2 border-dashed px-6 py-6 transition-colors',
+                draggingVideo ? 'border-link bg-link/5' : 'border-line bg-paper hover:border-ink/30',
+              )}
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-card ring-1 ring-line">
+                <Video className="h-4 w-4 text-muted" />
+              </span>
+              <p className="text-sm font-semibold text-ink">Drop production video here</p>
+              <p className="text-xs text-muted">or click to browse</p>
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => addVideo(e.target.files)}
+              />
+            </div>
+            <button onClick={useSampleVideo} className="self-start text-xs font-medium text-link hover:underline">
+              Use MasterChef S17 sample production video →
+            </button>
+          </div>
         )}
       </Card>
 
@@ -1315,58 +1492,135 @@ function StepPublishNonScripted({
   contestantCount,
   profile,
   globalFormat,
+  videoBriefs,
+  selfTapeDocs,
+  selfTapeVideo,
+  compensation,
+  onCompensation,
   onPublish,
   onBack,
 }: {
   contestantCount: number
   profile: string
   globalFormat: AuditionFormat
+  videoBriefs: VideoBrief[]
+  selfTapeDocs: UploadedDoc[]
+  selfTapeVideo: VideoBrief | null
+  compensation: CompensationData | null
+  onCompensation: (d: CompensationData) => void
   onPublish: () => void
   onBack: () => void
 }) {
-  const FORMAT_LABELS: Record<AuditionFormat, string> = {
+  const toast = useToast()
+  const [editOpen, setEditOpen] = useState(false)
+  const [compensationOpen, setCompensationOpen] = useState(false)
+
+  const FORMAT_LABEL: Record<AuditionFormat, string> = {
     'open-call': 'Open Call',
     'invited': 'Invited Only',
     'in-house': 'In-House',
   }
   const slots = Array.from({ length: contestantCount }, (_, i) => `Contestant ${i + 1}`)
+  const productionVideo = videoBriefs[0] ?? null
+
   return (
     <div className="flex flex-col gap-5">
+
+      {/* Project summary card */}
       <Card className="flex flex-col gap-4">
         <span className="tech-label">Casting summary</span>
 
-        <div className="flex items-center gap-3">
+        {/* Project header + edit */}
+        <div className="flex items-start gap-3">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cream text-ink ring-4 ring-cream/30">
             <Users className="h-6 w-6" />
           </span>
-          <div>
-            <p className="font-bold text-ink">MasterChef Australia — Season 17</p>
-            <p className="text-sm text-muted">Non-scripted · Banijay Australia</p>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-ink">{nonScriptedProject.title}</p>
+            <p className="text-sm text-muted">{nonScriptedProject.type} · {nonScriptedProject.company}</p>
+            <p className="text-xs text-muted">{nonScriptedProject.location} · {nonScriptedProject.shooting}</p>
           </div>
+          <button
+            onClick={() => setEditOpen(true)}
+            className="flex items-center gap-1.5 rounded-btn bg-paper px-3 py-1.5 text-xs font-semibold text-ink ring-1 ring-line hover:bg-ink/5"
+          >
+            <Pencil className="h-3 w-3" />
+            Edit
+          </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 rounded-card bg-paper p-4 ring-1 ring-line sm:grid-cols-3">
-          <div>
-            <p className="text-label text-xs font-semibold uppercase tracking-label text-muted">Contestant slots</p>
-            <p className="mt-0.5 text-2xl font-bold text-ink">{contestantCount}</p>
-          </div>
-          <div>
-            <p className="text-label text-xs font-semibold uppercase tracking-label text-muted">Audition format</p>
-            <p className="mt-0.5 font-semibold text-ink">{FORMAT_LABELS[globalFormat]}</p>
-          </div>
-          <div>
-            <p className="text-label text-xs font-semibold uppercase tracking-label text-muted">Platform</p>
-            <p className="mt-0.5 font-semibold text-ink">Let It Cast</p>
-          </div>
-        </div>
+        {/* Synopsis */}
+        <p className="rounded-btn bg-paper px-3 py-3 text-sm italic leading-relaxed text-ink ring-1 ring-line">
+          "{nonScriptedProject.synopsis}"
+        </p>
 
-        {profile && (
-          <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-label text-muted">Contestant profile</p>
-            <p className="text-sm leading-relaxed text-ink">{profile}</p>
+        {/* Production video brief */}
+        {productionVideo && (
+          <div className="flex flex-col gap-1.5 border-t border-line pt-3">
+            <span className="tech-label">Production video brief</span>
+            <div className="overflow-hidden rounded-btn bg-black ring-1 ring-line" style={{ aspectRatio: '16 / 9' }}>
+              <video src={productionVideo.url} controls preload="metadata" className="h-full w-full" style={{ objectFit: 'contain' }} />
+            </div>
           </div>
         )}
 
+        <div className="h-px bg-line" />
+
+        {/* KPI grid */}
+        <div className="grid grid-cols-3 gap-3 rounded-card bg-paper p-4 ring-1 ring-line">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-label text-muted">Contestant slots</p>
+            <p className="mt-0.5 text-2xl font-bold text-ink">{contestantCount}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-label text-muted">Audition format</p>
+            <p className="mt-0.5 font-semibold text-ink">{FORMAT_LABEL[globalFormat]}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-label text-muted">Platform</p>
+            <p className="mt-0.5 font-semibold text-ink">Let It Cast</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Self-tape brief summary */}
+      <Card className="flex flex-col gap-3">
+        <span className="tech-label">Self-tape brief</span>
+
+        {selfTapeDocs.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            {selfTapeDocs.map((d, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-btn bg-paper px-3 py-2.5 ring-1 ring-line">
+                <FileText className="h-4 w-4 shrink-0 text-link" />
+                <p className="min-w-0 flex-1 truncate text-sm text-ink">{d.name}</p>
+                <Tag tone="good">Uploaded</Tag>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted">No brief documents uploaded — contestants will receive instructions only.</p>
+        )}
+
+        {selfTapeVideo && (
+          <div className="flex flex-col gap-1.5 border-t border-line pt-3">
+            <span className="tech-label">Contestant guide video</span>
+            <div className="overflow-hidden rounded-btn bg-black ring-1 ring-line" style={{ aspectRatio: '16 / 9' }}>
+              <video src={selfTapeVideo.url} controls preload="metadata" className="h-full w-full" style={{ objectFit: 'contain' }} />
+            </div>
+            <p className="text-xs text-muted">{selfTapeVideo.name}</p>
+          </div>
+        )}
+      </Card>
+
+      {/* Profile + slots */}
+      <Card className="flex flex-col gap-3">
+        {profile && (
+          <>
+            <span className="tech-label">Contestant profile</span>
+            <p className="text-sm leading-relaxed text-ink">{profile}</p>
+            <div className="h-px bg-line" />
+          </>
+        )}
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-label text-muted">Contestant slots ({contestantCount})</p>
           <div className="flex flex-wrap gap-1.5">
@@ -1379,13 +1633,245 @@ function StepPublishNonScripted({
         </div>
       </Card>
 
+      {/* Compensation */}
+      <Card className="flex items-center justify-between gap-3">
+        <div>
+          <span className="tech-label">Compensation</span>
+          {compensation ? (
+            <p className="mt-0.5 text-sm font-semibold text-ink">
+              {compensation.isPaid ? `${compensation.currency} ${compensation.amount}` : 'Unpaid'}
+            </p>
+          ) : (
+            <p className="mt-0.5 text-sm text-muted">Not configured — click to set contestant fees</p>
+          )}
+        </div>
+        <button
+          onClick={() => setCompensationOpen(true)}
+          className="flex items-center gap-1.5 rounded-btn bg-paper px-3 py-1.5 text-xs font-semibold text-ink ring-1 ring-line hover:bg-ink/5"
+        >
+          <DollarSign className="h-3.5 w-3.5" />
+          {compensation ? 'Edit' : 'Set compensation'}
+        </button>
+      </Card>
+
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="text-sm font-medium text-muted hover:text-ink">← Back</button>
         <Button icon={<Zap className="h-4 w-4" />} onClick={onPublish}>
           Publish casting
         </Button>
       </div>
+
+      <AnimatePresence>
+        {editOpen && <EditNonScriptedProjectModal onClose={() => setEditOpen(false)} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {compensationOpen && (
+          <CompensationModal
+            roleName="Contestant slots"
+            data={compensation ?? undefined}
+            onClose={() => setCompensationOpen(false)}
+            onSave={(data, _applyAll) => { onCompensation(data); setCompensationOpen(false); toast('Compensation saved') }}
+          />
+        )}
+      </AnimatePresence>
     </div>
+  )
+}
+
+// ── Step 6 (non-scripted) — Match ─────────────────────────────────────────────
+
+const NS_SLOT_IDS = ['mc17-c01','mc17-c02','mc17-c03','mc17-c04','mc17-c05',
+                     'mc17-c06','mc17-c07','mc17-c08','mc17-c09','mc17-c10']
+
+function StepRecapNonScripted({
+  contestantCount,
+  globalFormat,
+  onBack,
+}: {
+  contestantCount: number
+  globalFormat: AuditionFormat
+  onBack: () => void
+}) {
+  const navigate = useNavigate()
+  const slots = Array.from({ length: contestantCount }, (_, i) => ({
+    label: `Contestant ${i + 1}`,
+    id: NS_SLOT_IDS[i] ?? `slot-${i + 1}`,
+  }))
+  const FORMAT_LABEL: Record<AuditionFormat, string> = {
+    'open-call': 'Open Call', 'invited': 'Invited Only', 'in-house': 'In-House',
+  }
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Project recap */}
+      <Card className="flex flex-col gap-3">
+        <Tag tone="good" icon={<Zap className="h-3 w-3" />}>Casting published</Tag>
+        <div className="flex items-center gap-3">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cream text-ink ring-4 ring-cream/30">
+            <Users className="h-6 w-6" />
+          </span>
+          <div>
+            <p className="font-bold text-ink">{nonScriptedProject.title}</p>
+            <p className="text-sm text-muted">{contestantCount} slots · {FORMAT_LABEL[globalFormat]} · {nonScriptedProject.location}</p>
+          </div>
+        </div>
+        <p className="text-sm text-muted">
+          Your casting is live. Use the "Matching Profile" button on each slot to run a targeted talent search. LIC will surface the strongest candidates based on your contestant profile.
+        </p>
+      </Card>
+
+      {/* Slots list */}
+      <div className="flex flex-col gap-2">
+        <span className="tech-label">{contestantCount} contestant slots</span>
+        {slots.map((slot) => (
+          <motion.div key={slot.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+            <Card className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cream text-xs font-bold text-ink ring-2 ring-cream/40">
+                {slot.label.replace('Contestant ', '')}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-ink">{slot.label}</p>
+                <p className="text-xs text-muted">Open · {FORMAT_LABEL[globalFormat]}</p>
+              </div>
+              <Button
+                variant="primary"
+                icon={<Sparkles className="h-4 w-4" />}
+                onClick={() => navigate(`/studio/casting-search?p=masterchef-australia-s17&role=${slot.id}`)}
+              >
+                Matching Profile
+              </Button>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="text-sm font-medium text-muted hover:text-ink">← Back</button>
+        <Button
+          variant="secondary"
+          icon={<ArrowRight className="h-4 w-4" />}
+          onClick={() => navigate('/studio/selection?p=masterchef-australia-s17&view=wall')}
+        >
+          View contestant wall
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Edit non-scripted project modal ───────────────────────────────────────────
+
+const SHOW_TYPES = ['Reality TV', 'Competition', 'Flow Show', 'Game Show', 'Talent Show', 'Dating / Relationship', 'Documentary Reality']
+
+function EditNonScriptedProjectModal({ onClose }: { onClose: () => void }) {
+  const toast = useToast()
+  const [title, setTitle]       = useState(nonScriptedProject.title)
+  const [showType, setShowType] = useState(nonScriptedProject.type)
+  const [company, setCompany]   = useState(nonScriptedProject.company)
+  const [location, setLocation] = useState(nonScriptedProject.location)
+  const [synopsis, setSynopsis] = useState(nonScriptedProject.synopsis)
+  const [shooting, setShooting] = useState(nonScriptedProject.shooting)
+  const anim = typeof document === 'undefined' || document.visibilityState === 'visible'
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 backdrop-blur-sm sm:items-center"
+      initial={anim ? { opacity: 0 } : false}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={anim ? { opacity: 0, y: 40 } : false}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 40 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg overflow-hidden rounded-t-card bg-card shadow-card-hover sm:rounded-card"
+      >
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <div>
+            <span className="tech-label">Edit project details</span>
+            <h3 className="mt-0.5 font-bold text-ink">{nonScriptedProject.title}</h3>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-ink"><X className="h-5 w-5" /></button>
+        </div>
+
+        <div className="max-h-[75vh] overflow-y-auto px-5 py-5">
+          <div className="flex flex-col gap-5">
+
+            <Field label="Show title">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="h-10 w-full rounded-btn border border-line bg-paper px-3 text-sm text-ink focus:border-ink focus:outline-none"
+              />
+            </Field>
+
+            <Field label="Show type">
+              <div className="flex flex-wrap gap-2">
+                {SHOW_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setShowType(t)}
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+                      showType === t ? 'border-ink bg-ink text-white' : 'border-line bg-paper text-muted hover:border-ink/40',
+                    )}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <Field label="Network / Production company">
+              <input
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                className="h-10 w-full rounded-btn border border-line bg-paper px-3 text-sm text-ink focus:border-ink focus:outline-none"
+              />
+            </Field>
+
+            <Field label="Filming location">
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. Los Angeles, New York…"
+                className="h-10 w-full rounded-btn border border-line bg-paper px-3 text-sm text-ink focus:border-ink focus:outline-none"
+              />
+            </Field>
+
+            <Field label="Shooting schedule">
+              <input
+                value={shooting}
+                onChange={(e) => setShooting(e.target.value)}
+                placeholder="e.g. Nov 2026–Feb 2027"
+                className="h-10 w-full rounded-btn border border-line bg-paper px-3 text-sm text-ink focus:border-ink focus:outline-none"
+              />
+            </Field>
+
+            <Field label="Show description / synopsis">
+              <textarea
+                value={synopsis}
+                onChange={(e) => setSynopsis(e.target.value)}
+                rows={4}
+                className="w-full resize-none rounded-card border border-line bg-paper px-3.5 py-3 text-sm text-ink outline-none focus:border-ink/30 focus:ring-1 focus:ring-ink/10"
+              />
+            </Field>
+
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-line px-5 py-4">
+          <button onClick={onClose} className="text-sm font-medium text-muted hover:text-ink">Cancel</button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => { toast('Details saved'); onClose() }}>Save Details</Button>
+            <Button onClick={() => { toast('Saved — ready to publish'); onClose() }}>Save &amp; Continue →</Button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
