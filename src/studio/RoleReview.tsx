@@ -215,7 +215,7 @@ function LICIntelligenceCard({ candidate, totalCandidates }: { candidate: Candid
           <div className="min-w-0">
             <div className="flex items-center gap-1">
               <p className="text-xs text-muted">Predicted ranking</p>
-              <InfoTooltip text="Estimated position of this candidate among all submissions for this role, based on team ratings and AI scene analysis scores. Updated in real time as your team votes." />
+              <InfoTooltip text="Estimated position among all submissions for this role. Combines team ratings, AI scene analysis scores, and historical casting performance across past seasons. Updated in real time as your team votes." />
             </div>
             <p className="text-sm font-bold text-ink">
               Top {topPct}% · #{rank} of {totalCandidates}

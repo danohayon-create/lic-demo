@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ArrowUpDown,
   Bookmark,
+  Wand2,
   Check,
   CheckCheck,
   CheckSquare,
@@ -189,6 +190,11 @@ export function SelectionConsole() {
   // Feature 1: AI Priority sort
   const [aiSort, setAiSort] = useState(false)
 
+  // Top Talent filter
+  const [topTalentActive, setTopTalentActive] = useState(false)
+  const [topTalentPct, setTopTalentPct] = useState(30)
+  const [topTalentOpen, setTopTalentOpen] = useState(false)
+
   // List column sort (score / status)
   const [listSort, setListSort] = useState<{ col: 'score' | 'status'; dir: 'asc' | 'desc' } | null>(null)
 
@@ -210,22 +216,34 @@ export function SelectionConsole() {
 
   const sortedCandidates = useMemo(() => {
     let base = filteredCandidates
+
+    // Top Talent filter — keep only candidates in top N% by composite score
+    if (topTalentActive) {
+      const total = base.length
+      if (total > 0) {
+        const threshold = Math.ceil(total * (topTalentPct / 100))
+        const ranked = [...base].sort((a, b) => compositeScore(b) - compositeScore(a))
+        const topIds = new Set(ranked.slice(0, threshold).map((c) => c.id))
+        base = base.filter((c) => topIds.has(c.id))
+      }
+    }
+
     if (aiSort) {
       base = [...base].sort((a, b) => {
         const wDiff = (STATUS_WEIGHT[b.status] ?? 0) - (STATUS_WEIGHT[a.status] ?? 0)
         if (wDiff !== 0) return wDiff
-        return candidateScore(b) - candidateScore(a)
+        return compositeScore(b) - compositeScore(a)
       })
     }
     if (listSort) {
       base = [...base].sort((a, b) => {
         const mul = listSort.dir === 'desc' ? -1 : 1
-        if (listSort.col === 'score') return mul * (candidateScore(a) - candidateScore(b))
+        if (listSort.col === 'score') return mul * (compositeScore(a) - compositeScore(b))
         return mul * ((STATUS_WEIGHT[a.status] ?? 0) - (STATUS_WEIGHT[b.status] ?? 0))
       })
     }
     return base
-  }, [filteredCandidates, aiSort, listSort])
+  }, [filteredCandidates, aiSort, listSort, topTalentActive, topTalentPct])
 
   const toggleCompareSelect = (id: string) => {
     setCompareIds((cur) => {
@@ -400,6 +418,12 @@ export function SelectionConsole() {
               Smart Sort
             </span>
           )}
+          {topTalentActive && (
+            <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+              <Wand2 className="h-3 w-3" />
+              Top {topTalentPct}%
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -413,6 +437,58 @@ export function SelectionConsole() {
               Smart Sort
             </Button>
             <SmartSortInfoTooltip />
+          </span>
+          <span className="relative flex items-center gap-1">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Wand2 className="h-3.5 w-3.5" />}
+              className={cn(topTalentActive && 'border-emerald-500 bg-emerald-50 text-emerald-700 hover:bg-emerald-100')}
+              onClick={() => {
+                if (!topTalentActive) { setTopTalentActive(true); setTopTalentOpen(true) }
+                else setTopTalentOpen((v) => !v)
+              }}
+            >
+              Top Talent
+            </Button>
+            {topTalentActive && (
+              <button
+                onClick={() => { setTopTalentActive(false); setTopTalentOpen(false) }}
+                className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-200 text-emerald-700 hover:bg-emerald-300"
+                title="Remove filter"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            )}
+            <TopTalentInfoTooltip />
+            {topTalentOpen && (
+              <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-card border border-line bg-card p-4 shadow-card-hover">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-ink">Show top candidates</span>
+                  <button onClick={() => setTopTalentOpen(false)} className="text-muted hover:text-ink">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted">Threshold</span>
+                    <span className="font-bold text-emerald-700">Top {topTalentPct}%</span>
+                  </div>
+                  <input
+                    type="range" min={5} max={50} step={5}
+                    value={topTalentPct}
+                    onChange={(e) => setTopTalentPct(Number(e.target.value))}
+                    className="w-full accent-emerald-600"
+                  />
+                  <div className="flex justify-between text-[10px] text-muted">
+                    <span>5%</span><span>25%</span><span>50%</span>
+                  </div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                    Showing candidates ranked in the top {topTalentPct}% by composite score (current casting + historical performance).
+                  </p>
+                </div>
+              </div>
+            )}
           </span>
           {view !== 'wall' && (
             <Button
@@ -1063,6 +1139,23 @@ function ViewTab({
   )
 }
 
+/* ── Composite score helpers ─────────────────────────────────────────────── */
+
+/** Deterministic mock historical score from candidate ID (30–80). */
+function historicalScore(candidate: { id: string }): number {
+  let h = 0
+  for (const ch of candidate.id) h = (h * 31 + ch.charCodeAt(0)) & 0xffff
+  return 30 + (h % 51)
+}
+
+/**
+ * Composite performance score: current casting weighted 3×, historical 1×.
+ * Formula: (currentScore × 3 + historicalScore × 1) / 4
+ */
+function compositeScore(candidate: Parameters<typeof candidateScore>[0] & { id: string }): number {
+  return Math.round((candidateScore(candidate) * 3 + historicalScore(candidate)) / 4)
+}
+
 /* ── List view helpers ────────────────────────────────────────────────────── */
 
 function ListInfoTooltip({ text }: { text: string }) {
@@ -1081,6 +1174,28 @@ function ListInfoTooltip({ text }: { text: string }) {
         <span className="absolute left-1/2 top-full z-50 mt-1.5 w-60 -translate-x-1/2 rounded-btn bg-ink px-3 py-2 text-[11px] leading-relaxed text-white shadow-lg">
           <span className="absolute bottom-full left-1/2 h-0 w-0 -translate-x-1/2 border-x-4 border-b-4 border-x-transparent border-b-ink" />
           {text}
+        </span>
+      )}
+    </span>
+  )
+}
+
+function TopTalentInfoTooltip() {
+  const [visible, setVisible] = useState(false)
+  return (
+    <span className="relative inline-flex">
+      <button
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        className="flex h-5 w-5 items-center justify-center text-muted/50 hover:text-muted"
+        aria-label="Top Talent info"
+      >
+        <Info className="h-3.5 w-3.5" />
+      </button>
+      {visible && (
+        <span className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-btn bg-ink px-3 py-2 text-[11px] leading-relaxed text-white shadow-lg">
+          <span className="absolute bottom-full right-2 h-0 w-0 border-x-4 border-b-4 border-x-transparent border-b-ink" />
+          Filters profiles by composite score: current casting performance (×3 weight) combined with historical performance across all past castings (×1 weight). Use the slider to set the top % threshold.
         </span>
       )}
     </span>
@@ -1209,7 +1324,7 @@ function ListView({
         <span />
         <span className="flex items-center justify-center gap-1">
           <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Performance Score</span>
-          <ListInfoTooltip text="Weighted average of team votes: Good ×2 + Maybe ×1 − No go ×1, divided by max possible score. Updated in real time as your team rates." />
+          <ListInfoTooltip text="Composite score: current casting votes (Good ×2, Maybe ×1, No go −1) weighted ×3, combined with historical performance across all past castings weighted ×1. Divided by 4 for the final score." />
           <SortButton col="score" listSort={listSort ?? null} onToggle={onToggleListSort} />
         </span>
         <span className="flex items-center justify-end gap-1">
