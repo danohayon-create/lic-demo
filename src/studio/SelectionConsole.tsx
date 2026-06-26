@@ -397,20 +397,23 @@ export function SelectionConsole() {
           {aiSort && (
             <span className="flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-1 text-[11px] font-semibold text-purple-700">
               <Sparkles className="h-3 w-3" />
-              AI Priority
+              Smart Sort
             </span>
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant={aiSort ? 'primary' : 'secondary'}
-            size="sm"
-            icon={<Sparkles className="h-3.5 w-3.5" />}
-            onClick={() => setAiSort((v) => !v)}
-          >
-            AI Priority
-          </Button>
+          <span className="flex items-center gap-1">
+            <Button
+              variant={aiSort ? 'primary' : 'secondary'}
+              size="sm"
+              icon={<Sparkles className="h-3.5 w-3.5" />}
+              onClick={() => setAiSort((v) => !v)}
+            >
+              Smart Sort
+            </Button>
+            <SmartSortInfoTooltip />
+          </span>
           {view !== 'wall' && (
             <Button
               variant={compareMode ? 'primary' : 'secondary'}
@@ -1075,9 +1078,31 @@ function ListInfoTooltip({ text }: { text: string }) {
         <Info className="h-3 w-3" />
       </button>
       {visible && (
-        <span className="absolute bottom-full left-1/2 z-50 mb-1.5 w-56 -translate-x-1/2 rounded-btn bg-ink px-3 py-2 text-[11px] leading-relaxed text-white shadow-lg">
+        <span className="absolute left-1/2 top-full z-50 mt-1.5 w-60 -translate-x-1/2 rounded-btn bg-ink px-3 py-2 text-[11px] leading-relaxed text-white shadow-lg">
+          <span className="absolute bottom-full left-1/2 h-0 w-0 -translate-x-1/2 border-x-4 border-b-4 border-x-transparent border-b-ink" />
           {text}
-          <span className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-4 border-t-4 border-x-transparent border-t-ink" />
+        </span>
+      )}
+    </span>
+  )
+}
+
+function SmartSortInfoTooltip() {
+  const [visible, setVisible] = useState(false)
+  return (
+    <span className="relative inline-flex">
+      <button
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        className="flex h-5 w-5 items-center justify-center text-muted/50 hover:text-muted"
+        aria-label="Smart Sort info"
+      >
+        <Info className="h-3.5 w-3.5" />
+      </button>
+      {visible && (
+        <span className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-btn bg-ink px-3 py-2 text-[11px] leading-relaxed text-white shadow-lg">
+          <span className="absolute bottom-full right-2 h-0 w-0 border-x-4 border-b-4 border-x-transparent border-b-ink" />
+          Sorts candidates by pipeline stage first (Cast → Callback → New → No go), then by Performance Score within each stage. Activate to surface the most promising profiles instantly.
         </span>
       )}
     </span>
