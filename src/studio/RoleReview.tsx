@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, Check, HelpCircle, Pin, PhoneCall, LayoutGrid, Plus, Send, Star, Sparkles, History, TrendingUp } from 'lucide-react'
+import {
+  ChevronLeft, ChevronRight, X, Check, HelpCircle, Pin, PhoneCall,
+  LayoutGrid, Plus, Send, Star, Sparkles, History, TrendingUp, Pencil,
+} from 'lucide-react'
 import { Card, Avatar, Button, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import { cn } from '@/lib/cn'
@@ -12,7 +15,6 @@ import {
   candidateScore,
   candidateAverageRating,
   deriveTeamRatings,
-  deriveAiMetrics,
   type Candidate,
 } from '@/data/selection'
 import { Player, Transcript } from './Review'
@@ -28,6 +30,10 @@ const ratingOptions = [
   { key: 'good' as const,  label: 'Good match', icon: Check,
     base: 'border-signal-good/30 text-signal-good hover:bg-signal-good/5',
     active: 'border-signal-good bg-signal-good text-white' },
+]
+
+const SCENE_AXES = [
+  'Authenticity', 'Charisma', 'Originality', 'Watchability', 'Camera presence',
 ]
 
 export function RoleReview({ projectId, roleId }: { projectId: string; roleId: string }) {
@@ -66,9 +72,9 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
 
   return (
     <div className="flex flex-col gap-4">
+      {/* breadcrumb + nav */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Breadcrumb projectTitle={project.title} roleName={role.name} candidateName={candidate.name} navigate={navigate} />
-
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate(`/studio/selection?p=${projectId}&role=${role.id}`)}
@@ -131,95 +137,85 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
         </div>
       </Card>
 
+      {/* ── Let it Cast Intelligence — full width, above player ── */}
+      <LICIntelligenceCard candidate={candidate} totalCandidates={candidates.length} />
+
       {/* player + decision */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        {/* left column */}
         <div className="flex flex-col gap-4">
           <Player key={candidate.id} src={asset(candidate.video)} />
           <Transcript />
+          <CastingHistoryCard />
+          <DirectFeedbackCard key={`feedback-${candidate.id}`} />
         </div>
+        {/* right column */}
         <RoleDecisionPanel key={candidate.id} candidate={candidate} reviewed={reviewed} />
       </div>
     </div>
   )
 }
 
-function Breadcrumb({
-  projectTitle,
-  roleName,
-  candidateName,
-  navigate,
-}: {
-  projectTitle: string
-  roleName: string
-  candidateName: string
-  navigate: ReturnType<typeof useNavigate>
-}) {
-  return (
-    <nav className="flex items-center gap-1.5 text-sm text-muted">
-      <button onClick={() => navigate('/studio/dashboard?p=les-ombres-de-midi')} className="hover:text-ink">
-        {projectTitle}
-      </button>
-      <ChevronRight className="h-3.5 w-3.5" />
-      <span className="text-ink">{roleName}</span>
-      {candidateName && (
-        <>
-          <ChevronRight className="h-3.5 w-3.5" />
-          <span className="font-semibold text-ink">{candidateName}</span>
-        </>
-      )}
-    </nav>
-  )
-}
+/* ── Let it Cast Intelligence (full-width) ─────────────────────────────────── */
 
-function RoleDecisionPanel({ candidate, reviewed }: { candidate: Candidate; reviewed: boolean }) {
-  const toast = useToast()
-  const { id: candidateId, good, maybe, no } = candidate
-  const tally: Record<'good' | 'maybe' | 'no', number> = { good, maybe, no }
-  const [lastVote, setLastVote] = useState<'good' | 'maybe' | 'no' | null>(null)
-  const [stars, setStars] = useState(Math.round(candidateAverageRating(candidate)))
-  const [note, setNote] = useState('')
-  const [sent, setSent] = useState(false)
+function LICIntelligenceCard({ candidate, totalCandidates }: { candidate: Candidate; totalCandidates: number }) {
+  const score = candidateScore(candidate)
+  const rank = Math.max(1, Math.round((100 - score) / 100 * totalCandidates * 0.8))
+  const topPct = Math.round((rank / totalCandidates) * 100)
 
-  const teamRatings = deriveTeamRatings(candidate)
-  const aiMetrics = deriveAiMetrics(candidate)
+  const whyTags = score >= 75
+    ? ['High watchability', 'Strong charisma', 'Rare profile']
+    : score >= 50
+    ? ['Potential match', 'Needs more review', 'Mid-range profile']
+    : ['Low score', 'Needs more data']
 
   return (
-    <div className="flex flex-col gap-4">
-
-      {/* AI Insight */}
-      <Card className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-3.5 w-3.5 text-link" />
-          <span className="tech-label">AI Insight</span>
+    <Card className="flex flex-col gap-4">
+      {/* header */}
+      <div className="flex items-start gap-2">
+        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-link" />
+        <div>
+          <span className="tech-label text-link">Let it Cast Intelligence</span>
+          <p className="mt-0.5 text-xs text-muted leading-relaxed">
+            Ranking combines team ratings, AI scene analysis, and historical casting patterns.<br />
+            Each candidate is benchmarked against all {totalCandidates} submissions for this role.<br />
+            The model continuously improves as your team rates more auditions.
+          </p>
         </div>
-        <div className="flex items-center justify-between rounded-btn bg-link/5 px-3 py-2.5">
+      </div>
+
+      {/* content — 3 columns on wide screens */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* predicted rank */}
+        <div className="flex items-center gap-3 rounded-btn bg-link/5 px-3 py-2.5">
+          <TrendingUp className="h-5 w-5 shrink-0 text-link" />
           <div>
             <p className="text-xs text-muted">Predicted ranking</p>
-            <p className="text-sm font-bold text-ink">Top 8% · #{Math.max(1, Math.round(candidateScore(candidate) / 2))} of {candidate.good + candidate.maybe + candidate.no + 42}</p>
+            <p className="text-sm font-bold text-ink">
+              Top {topPct}% · #{rank} of {totalCandidates}
+            </p>
           </div>
-          <TrendingUp className="h-5 w-5 text-link" />
         </div>
+
+        {/* why surfaced */}
         <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-label text-muted">Why surfaced</p>
           <div className="flex flex-wrap gap-1.5">
-            {(candidateScore(candidate) >= 75
-              ? ['High watchability', 'Strong charisma', 'Rare profile']
-              : candidateScore(candidate) >= 50
-              ? ['Potential match', 'Needs review', 'Mid-range profile']
-              : ['Low score', 'Needs more data']
-            ).map((tag) => (
+            {whyTags.map((tag) => (
               <span key={tag} className="rounded-full bg-link/8 px-2.5 py-1 text-xs font-medium text-link">
                 {tag}
               </span>
             ))}
           </div>
         </div>
-        <div className="border-t border-line pt-2">
+
+        {/* similar past profiles */}
+        <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-label text-muted">Similar past profiles</p>
           <div className="flex flex-col gap-1">
             {[
-              { name: 'Emma K.', note: 'Season 3 finalist · Booked lead' },
-              { name: 'Sarah M.', note: 'Season 2 · Callback · High engagement' },
+              { name: 'Emma K.', note: 'S3 finalist · Booked lead' },
+              { name: 'Sarah M.', note: 'S2 · Callback · High engagement' },
             ].map((p) => (
               <div key={p.name} className="flex items-center gap-2">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-line text-[10px] font-bold text-muted">
@@ -233,37 +229,111 @@ function RoleDecisionPanel({ candidate, reviewed }: { candidate: Candidate; revi
             ))}
           </div>
         </div>
-      </Card>
+      </div>
+    </Card>
+  )
+}
 
-      {/* Casting history */}
-      <Card className="flex flex-col gap-3">
+/* ── Casting history (left column) ─────────────────────────────────────────── */
+
+function CastingHistoryCard() {
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <History className="h-3.5 w-3.5 text-muted" />
+        <span className="tech-label">Casting history</span>
+      </div>
+      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {[
+          { show: 'Survivor AU', season: 'S12', role: 'Contestant', result: 'Callback', color: 'text-signal-good bg-signal-good-bg' },
+          { show: 'MasterChef AU', season: 'S15', role: 'Home Cook', result: 'Shortlisted', color: 'text-[#8A6D00] bg-signal-maybe/10' },
+          { show: 'The Block', season: 'S19', role: 'Contestant', result: 'No go', color: 'text-signal-no bg-signal-no/8' },
+        ].map((entry) => (
+          <li key={entry.show + entry.season} className="flex items-center justify-between gap-2 rounded-btn bg-paper px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold text-ink">{entry.show} <span className="text-muted">· {entry.season}</span></p>
+              <p className="truncate text-[11px] text-muted">{entry.role}</p>
+            </div>
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${entry.color}`}>
+              {entry.result}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  )
+}
+
+/* ── Direct feedback (left column) ─────────────────────────────────────────── */
+
+function DirectFeedbackCard() {
+  const toast = useToast()
+  const [note, setNote] = useState('')
+  const [sent, setSent] = useState(false)
+
+  return (
+    <Card className="flex flex-col gap-3">
+      <div>
+        <span className="tech-label">Direct feedback to actor</span>
+        <p className="text-xs text-muted">Sent privately to the actor</p>
+      </div>
+      {sent ? (
+        <p className="flex items-center gap-1.5 text-sm font-medium text-signal-good">
+          <Check className="h-4 w-4" /> Feedback sent.
+        </p>
+      ) : (
         <div className="flex items-center gap-2">
-          <History className="h-3.5 w-3.5 text-muted" />
-          <span className="tech-label">Casting history</span>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Write a note…"
+            className="h-10 flex-1 rounded-btn border border-line bg-paper px-3 text-sm text-ink focus:border-ink/20 focus:outline-none focus:ring-2 focus:ring-ink/10"
+          />
+          <button
+            onClick={() => { if (!note.trim()) return; setSent(true); toast('Feedback sent to actor') }}
+            className="flex h-10 w-10 items-center justify-center rounded-btn bg-ink text-white hover:bg-ink/90 disabled:opacity-40"
+            disabled={!note.trim()}
+          >
+            <Send className="h-4 w-4" />
+          </button>
         </div>
-        <ul className="flex flex-col gap-2">
-          {[
-            { show: 'Survivor AU', season: 'S12', role: 'Contestant', result: 'Callback', color: 'text-signal-good bg-signal-good-bg' },
-            { show: 'MasterChef AU', season: 'S15', role: 'Home Cook', result: 'Shortlisted', color: 'text-[#8A6D00] bg-signal-maybe/10' },
-            { show: 'The Block', season: 'S19', role: 'Contestant', result: 'No go', color: 'text-signal-no bg-signal-no/8' },
-          ].map((entry) => (
-            <li key={entry.show + entry.season} className="flex items-center justify-between gap-2 rounded-btn bg-paper px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-xs font-semibold text-ink">{entry.show} <span className="text-muted">· {entry.season}</span></p>
-                <p className="truncate text-[11px] text-muted">{entry.role}</p>
-              </div>
-              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${entry.color}`}>
-                {entry.result}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      )}
+    </Card>
+  )
+}
 
-      {/* your rating */}
+/* ── Right column: Your Rating · Other Ratings · Scene Analysis ─────────────── */
+
+function RoleDecisionPanel({ candidate, reviewed }: { candidate: Candidate; reviewed: boolean }) {
+  const toast = useToast()
+  const { id: candidateId, good, maybe, no } = candidate
+  const tally: Record<'good' | 'maybe' | 'no', number> = { good, maybe, no }
+  const [lastVote, setLastVote] = useState<'good' | 'maybe' | 'no' | null>(null)
+  const [stars, setStars] = useState(Math.round(candidateAverageRating(candidate)))
+
+  const teamRatings = deriveTeamRatings(candidate)
+
+  // Scene Analysis — 5 axes with edit mode
+  const score = candidateScore(candidate)
+  const baseValues = [
+    Math.min(100, score + 8),
+    Math.min(100, score + 2),
+    Math.max(0, score - 6),
+    Math.min(100, score + 11),
+    Math.max(0, score - 12),
+  ]
+  const [editingMetrics, setEditingMetrics] = useState(false)
+  const [metrics, setMetrics] = useState(
+    SCENE_AXES.map((label, i) => ({ label, value: baseValues[i] }))
+  )
+
+  return (
+    <div className="flex flex-col gap-4">
+
+      {/* Your rating */}
       <Card className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <span className="tech-label">Rate this take</span>
+          <span className="tech-label">Your rating</span>
           <Tag tone={reviewed ? 'good' : 'neutral'}>{reviewed ? 'Reviewed' : 'Not reviewed'}</Tag>
         </div>
         <div className="flex flex-col gap-2">
@@ -273,26 +343,18 @@ function RoleDecisionPanel({ candidate, reviewed }: { candidate: Candidate; revi
             return (
               <button
                 key={o.key}
-                onClick={() => {
-                  rateCandidate(candidateId, o.key)
-                  setLastVote(o.key)
-                  toast(`Vote added: ${o.label}`)
-                }}
+                onClick={() => { rateCandidate(candidateId, o.key); setLastVote(o.key); toast(`Vote added: ${o.label}`) }}
                 className={cn(
                   'flex items-center justify-between rounded-btn border-2 bg-card px-4 py-2.5 text-sm font-semibold transition-all',
                   isActive ? o.active : o.base,
                 )}
               >
-                <span className="flex items-center gap-2">
-                  <Icon className="h-4 w-4" />
-                  {o.label}
-                </span>
+                <span className="flex items-center gap-2"><Icon className="h-4 w-4" />{o.label}</span>
                 <span className={cn('font-mono text-xs', isActive ? 'text-white/80' : 'text-muted')}>{tally[o.key]}</span>
               </button>
             )
           })}
         </div>
-
         <div className="flex items-center gap-2 border-t border-line pt-3">
           <div className="flex gap-0.5">
             {[1, 2, 3, 4, 5].map((n) => (
@@ -305,7 +367,7 @@ function RoleDecisionPanel({ candidate, reviewed }: { candidate: Candidate; revi
         </div>
       </Card>
 
-      {/* other ratings */}
+      {/* Other ratings */}
       <Card className="flex flex-col gap-3">
         <span className="tech-label">Other ratings</span>
         <div className="flex items-center gap-2">
@@ -334,59 +396,77 @@ function RoleDecisionPanel({ candidate, reviewed }: { candidate: Candidate; revi
         </span>
       </Card>
 
-      {/* AI scene analysis */}
+      {/* Scene Analysis */}
       <Card className="flex flex-col gap-3">
-        <div>
-          <span className="tech-label">AI scene analysis</span>
-          <p className="text-xs text-muted">Auto-generated from the take</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <span className="tech-label">Scene Analysis</span>
+            <p className="text-xs text-muted">
+              {editingMetrics ? 'Adjust the scores below' : 'AI-proposed · you can override'}
+            </p>
+          </div>
+          <button
+            onClick={() => setEditingMetrics((v) => !v)}
+            title={editingMetrics ? 'Done editing' : 'Edit scores'}
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-line text-muted transition-colors hover:border-ink/30 hover:text-ink"
+          >
+            {editingMetrics ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+          </button>
         </div>
         <ul className="flex flex-col gap-3">
-          {aiMetrics.map((m) => (
+          {metrics.map((m, i) => (
             <li key={m.label} className="flex flex-col gap-1">
               <div className="flex justify-between text-sm">
                 <span className="text-ink">{m.label}</span>
                 <span className="font-semibold text-ink">{m.value}</span>
               </div>
-              <span className="h-1.5 w-full overflow-hidden rounded-full bg-line">
-                <span className="block h-full rounded-full bg-ink/70" style={{ width: `${m.value}%` }} />
-              </span>
+              {editingMetrics ? (
+                <input
+                  type="range" min={0} max={100} value={m.value}
+                  onChange={(e) => {
+                    const next = [...metrics]
+                    next[i] = { ...next[i], value: Number(e.target.value) }
+                    setMetrics(next)
+                  }}
+                  className="h-1.5 w-full cursor-pointer accent-ink"
+                />
+              ) : (
+                <span className="h-1.5 w-full overflow-hidden rounded-full bg-line">
+                  <span className="block h-full rounded-full bg-ink/70 transition-all duration-300" style={{ width: `${m.value}%` }} />
+                </span>
+              )}
             </li>
           ))}
         </ul>
       </Card>
 
-      {/* direct feedback */}
-      <Card className="flex flex-col gap-3">
-        <div>
-          <span className="tech-label">Direct feedback to actor</span>
-          <p className="text-xs text-muted">Sent privately to the actor</p>
-        </div>
-        {sent ? (
-          <p className="flex items-center gap-1.5 text-sm font-medium text-signal-good">
-            <Check className="h-4 w-4" /> Feedback sent.
-          </p>
-        ) : (
-          <div className="flex items-center gap-2">
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Write a note…"
-              className="h-10 flex-1 rounded-btn border border-line bg-paper px-3 text-sm text-ink focus:border-ink/20 focus:outline-none focus:ring-2 focus:ring-ink/10"
-            />
-            <button
-              onClick={() => {
-                if (!note.trim()) return
-                setSent(true)
-                toast('Feedback sent to actor')
-              }}
-              className="flex h-10 w-10 items-center justify-center rounded-btn bg-ink text-white hover:bg-ink/90 disabled:opacity-40"
-              disabled={!note.trim()}
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-      </Card>
     </div>
+  )
+}
+
+/* ── Breadcrumb ─────────────────────────────────────────────────────────────── */
+
+function Breadcrumb({
+  projectTitle, roleName, candidateName, navigate,
+}: {
+  projectTitle: string
+  roleName: string
+  candidateName: string
+  navigate: ReturnType<typeof useNavigate>
+}) {
+  return (
+    <nav className="flex items-center gap-1.5 text-sm text-muted">
+      <button onClick={() => navigate('/studio/dashboard?p=les-ombres-de-midi')} className="hover:text-ink">
+        {projectTitle}
+      </button>
+      <ChevronRight className="h-3.5 w-3.5" />
+      <span className="text-ink">{roleName}</span>
+      {candidateName && (
+        <>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="font-semibold text-ink">{candidateName}</span>
+        </>
+      )}
+    </nav>
   )
 }
