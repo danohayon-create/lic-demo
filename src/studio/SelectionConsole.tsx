@@ -9,6 +9,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Columns2,
+  Gauge,
   Grid2x2,
   HelpCircle,
   LayoutGrid,
@@ -18,6 +20,7 @@ import {
   Play,
   Search,
   Send,
+  Sparkles,
   Square,
   Trash2,
   UserRound,
@@ -181,6 +184,41 @@ export function SelectionConsole() {
   const [saveSearchOpen, setSaveSearchOpen] = useState(false)
   const [watchQueue, setWatchQueue] = useState<Candidate[] | null>(null)
 
+  // Feature 1: AI Priority sort
+  const [aiSort, setAiSort] = useState(false)
+
+  // Feature 3: Compare mode
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
+
+  const STATUS_WEIGHT: Record<CandidateStatus, number> = {
+    cast: 6, offer: 5, callback: 4, shortlisted: 3, new: 2, 'no-go': 1,
+  }
+
+  const sortedCandidates = useMemo(() => {
+    if (!aiSort) return filteredCandidates
+    return [...filteredCandidates].sort((a, b) => {
+      const wDiff = (STATUS_WEIGHT[b.status] ?? 0) - (STATUS_WEIGHT[a.status] ?? 0)
+      if (wDiff !== 0) return wDiff
+      return candidateScore(b) - candidateScore(a)
+    })
+  }, [filteredCandidates, aiSort])
+
+  const toggleCompareSelect = (id: string) => {
+    setCompareIds((cur) => {
+      const next = new Set(cur)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Open modal when exactly 2 are selected in compare mode
+  const compareSelectedCandidates = useMemo(
+    () => sortedCandidates.filter((c) => compareIds.has(c.id)),
+    [sortedCandidates, compareIds],
+  )
+
   const handleDrop = (status: CandidateStatus) => {
     setOverColumn(null)
     if (!draggedId) return
@@ -327,22 +365,53 @@ export function SelectionConsole() {
 
       {/* View toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1 rounded-btn bg-paper p-1 ring-1 ring-line">
-          <ViewTab active={view === 'list'} icon={<List className="h-3.5 w-3.5" />} label="List" onClick={() => { setView('list'); setColumnFocus(null) }} />
-          <ViewTab active={view === 'kanban'} icon={<LayoutGrid className="h-3.5 w-3.5" />} label="Talent Flow" onClick={() => setView('kanban')} />
-          <ViewTab active={view === 'wall'} icon={<Grid2x2 className="h-3.5 w-3.5" />} label="Wall" onClick={() => { setView('wall'); setColumnFocus(null) }} />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-btn bg-paper p-1 ring-1 ring-line">
+            <ViewTab active={view === 'list'} icon={<List className="h-3.5 w-3.5" />} label="List" onClick={() => { setView('list'); setColumnFocus(null) }} />
+            <ViewTab active={view === 'kanban'} icon={<LayoutGrid className="h-3.5 w-3.5" />} label="Talent Flow" onClick={() => setView('kanban')} />
+            <ViewTab active={view === 'wall'} icon={<Grid2x2 className="h-3.5 w-3.5" />} label="Wall" onClick={() => { setView('wall'); setColumnFocus(null) }} />
+          </div>
+          {aiSort && (
+            <span className="flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-1 text-[11px] font-semibold text-purple-700">
+              <Sparkles className="h-3 w-3" />
+              AI Priority
+            </span>
+          )}
         </div>
 
-        {view !== 'wall' && (
+        <div className="flex items-center gap-2">
           <Button
-            variant={selectMode ? 'primary' : 'secondary'}
+            variant={aiSort ? 'primary' : 'secondary'}
             size="sm"
-            icon={selectMode ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
-            onClick={toggleSelectMode}
+            icon={<Sparkles className="h-3.5 w-3.5" />}
+            onClick={() => setAiSort((v) => !v)}
           >
-            {selectMode ? 'Done selecting' : 'Select multiple'}
+            AI Priority
           </Button>
-        )}
+          {view !== 'wall' && (
+            <Button
+              variant={compareMode ? 'primary' : 'secondary'}
+              size="sm"
+              icon={<Columns2 className="h-3.5 w-3.5" />}
+              onClick={() => {
+                setCompareMode((v) => !v)
+                setCompareIds(new Set())
+              }}
+            >
+              Compare
+            </Button>
+          )}
+          {view !== 'wall' && !compareMode && (
+            <Button
+              variant={selectMode ? 'primary' : 'secondary'}
+              size="sm"
+              icon={selectMode ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+              onClick={toggleSelectMode}
+            >
+              {selectMode ? 'Done selecting' : 'Select multiple'}
+            </Button>
+          )}
+        </div>
       </div>
 
       <p className="text-sm text-muted">
@@ -367,11 +436,23 @@ export function SelectionConsole() {
         </div>
       )}
 
+      {/* Diversity alert bar */}
+      <DiversityBar allCandidates={allCandidates} />
+
+      {/* Compare modal — auto-opens when exactly 2 candidates selected */}
+      {compareMode && compareSelectedCandidates.length === 2 && (
+        <PairwiseModal
+          candidateA={compareSelectedCandidates[0]}
+          candidateB={compareSelectedCandidates[1]}
+          onClose={() => { setCompareIds(new Set()); setCompareMode(false) }}
+        />
+      )}
+
       {/* Kanban view */}
       {view === 'kanban' && (
         <div className="flex gap-3 overflow-x-auto pb-2">
           {BOARD_COLUMNS.map((col) => {
-            const colCandidates = filteredCandidates.filter((c) => c.status === col)
+            const colCandidates = sortedCandidates.filter((c) => c.status === col)
             const isOver = overColumn === col
             const locked = LOCKED_COLUMNS.has(col)
             return (
@@ -432,13 +513,16 @@ export function SelectionConsole() {
                       roleName={rolesById[c.roleId]?.name}
                       showRole={filters.roleIds.length !== 1}
                       dragging={draggedId === c.id}
-                      draggable={!locked && !selectMode}
+                      draggable={!locked && !selectMode && !compareMode}
                       onDragStart={() => setDraggedId(c.id)}
                       onDragEnd={() => setDraggedId(null)}
                       onOpenReview={() => navigate(`/studio/review?p=${projectId}&role=${c.roleId}&candidate=${c.id}`)}
                       selectMode={selectMode}
                       selected={selectedIds.has(c.id)}
                       onToggleSelect={() => toggleSelected(c.id)}
+                      compareMode={compareMode}
+                      compareSelected={compareIds.has(c.id)}
+                      onToggleCompare={() => toggleCompareSelect(c.id)}
                     />
                   ))}
                   {colCandidates.length === 0 && (
@@ -456,7 +540,7 @@ export function SelectionConsole() {
       {/* List view */}
       {view === 'list' && (
         <ListView
-          candidates={columnFocus ? filteredCandidates.filter((c) => c.status === columnFocus) : filteredCandidates}
+          candidates={columnFocus ? sortedCandidates.filter((c) => c.status === columnFocus) : sortedCandidates}
           rolesById={rolesById}
           selectMode={selectMode}
           selectedIds={selectedIds}
@@ -465,6 +549,9 @@ export function SelectionConsole() {
           onOpenReview={(c) => navigate(`/studio/review?p=${projectId}&role=${c.roleId}&candidate=${c.id}`)}
           onWatch={(c) => setWatchQueue([c])}
           onWatchAll={(list) => setWatchQueue(list)}
+          compareMode={compareMode}
+          compareIds={compareIds}
+          onToggleCompare={toggleCompareSelect}
         />
       )}
 
@@ -960,6 +1047,9 @@ function ListView({
   onOpenReview,
   onWatch,
   onWatchAll,
+  compareMode = false,
+  compareIds = new Set<string>(),
+  onToggleCompare,
 }: {
   candidates: Candidate[]
   rolesById: Record<string, Role>
@@ -970,6 +1060,9 @@ function ListView({
   onOpenReview: (c: Candidate) => void
   onWatch: (c: Candidate) => void
   onWatchAll: (list: Candidate[]) => void
+  compareMode?: boolean
+  compareIds?: Set<string>
+  onToggleCompare?: (id: string) => void
 }) {
   if (candidates.length === 0) {
     return (
@@ -1015,23 +1108,33 @@ function ListView({
         const scoreColor = score >= 75 ? 'text-signal-good' : score >= 50 ? 'text-[#8A6D00]' : 'text-signal-no'
         const teamRatings = deriveTeamRatings(c)
         const selected = selectedIds.has(c.id)
+        const compareSelected = compareIds.has(c.id)
         return (
           <div
             key={c.id}
-            onClick={selectMode ? () => onToggleSelect(c.id) : undefined}
-            onDoubleClick={selectMode ? undefined : () => onOpenReview(c)}
-            title={selectMode ? 'Click to select' : 'Double-click to watch the review'}
+            onClick={compareMode ? () => onToggleCompare?.(c.id) : selectMode ? () => onToggleSelect(c.id) : undefined}
+            onDoubleClick={selectMode || compareMode ? undefined : () => onOpenReview(c)}
+            title={compareMode ? 'Click to select for comparison' : selectMode ? 'Click to select' : 'Double-click to watch the review'}
             className={cn(
               LIST_GRID,
               'px-4 py-3.5',
               i > 0 && 'border-t border-line',
-              selectMode ? 'cursor-pointer' : 'cursor-default',
-              selected ? 'bg-link/5' : 'hover:bg-paper',
+              selectMode || compareMode ? 'cursor-pointer' : 'cursor-default',
+              compareSelected ? 'bg-purple-50 ring-2 ring-inset ring-purple-500' : selected ? 'bg-link/5' : 'hover:bg-paper',
             )}
           >
             {/* checkbox */}
             <span>
-              {selectMode && (
+              {compareMode ? (
+                <span
+                  className={cn(
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2',
+                    compareSelected ? 'border-purple-500 bg-purple-500 text-white' : 'border-line text-transparent',
+                  )}
+                >
+                  <Check className="h-3 w-3" />
+                </span>
+              ) : selectMode && (
                 <span
                   className={cn(
                     'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2',
@@ -1407,6 +1510,9 @@ function CandidateCard({
   selectMode,
   selected,
   onToggleSelect,
+  compareMode = false,
+  compareSelected = false,
+  onToggleCompare,
 }: {
   candidate: Candidate
   roleName?: string
@@ -1419,6 +1525,9 @@ function CandidateCard({
   selectMode: boolean
   selected: boolean
   onToggleSelect: () => void
+  compareMode?: boolean
+  compareSelected?: boolean
+  onToggleCompare?: () => void
 }) {
   const score = candidateScore(candidate)
   const reviewed = candidate.good + candidate.maybe + candidate.no > 0
@@ -1432,17 +1541,27 @@ function CandidateCard({
       draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onClick={selectMode ? onToggleSelect : undefined}
-      onDoubleClick={selectMode ? undefined : onOpenReview}
-      title={selectMode ? 'Click to select' : 'Double-click to watch the review'}
+      onClick={compareMode ? onToggleCompare : selectMode ? onToggleSelect : undefined}
+      onDoubleClick={selectMode || compareMode ? undefined : onOpenReview}
+      title={compareMode ? 'Click to select for comparison' : selectMode ? 'Click to select' : 'Double-click to watch the review'}
       className={cn(
         'relative flex flex-col gap-2 rounded-card border bg-card p-3 shadow-card transition-opacity',
-        draggable ? 'cursor-grab active:cursor-grabbing' : selectMode ? 'cursor-pointer' : 'cursor-default',
+        draggable ? 'cursor-grab active:cursor-grabbing' : (selectMode || compareMode) ? 'cursor-pointer' : 'cursor-default',
         dragging && 'opacity-40',
-        selected ? 'border-link ring-2 ring-link/30' : 'border-line',
+        compareSelected ? 'border-purple-500 ring-2 ring-purple-500' : selected ? 'border-link ring-2 ring-link/30' : 'border-line',
       )}
     >
-      {selectMode && (
+      {compareMode && (
+        <span
+          className={cn(
+            'absolute -left-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border-2 bg-card',
+            compareSelected ? 'border-purple-500 bg-purple-500 text-white' : 'border-line text-transparent',
+          )}
+        >
+          <Check className="h-3 w-3" />
+        </span>
+      )}
+      {!compareMode && selectMode && (
         <span
           className={cn(
             'absolute -left-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border-2 bg-card',
@@ -1501,6 +1620,171 @@ function CandidateCard({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/* ── Diversity bar ────────────────────────────────────────────────────────── */
+
+function DiversityBar({ allCandidates }: { allCandidates: Candidate[] }) {
+  const shortlisted = useMemo(
+    () => allCandidates.filter((c) => ['shortlisted', 'callback', 'cast', 'offer'].includes(c.status)),
+    [allCandidates],
+  )
+
+  if (shortlisted.length < 3) return null
+
+  const ages = shortlisted.map((c) => c.age).filter((a): a is number => typeof a === 'number')
+  const ageMin = ages.length > 0 ? Math.min(...ages) : null
+  const ageMax = ages.length > 0 ? Math.max(...ages) : null
+  const ageRange = ageMin != null && ageMax != null ? ageMax - ageMin : null
+
+  // Top 2 cities
+  const cityCounts: Record<string, number> = {}
+  shortlisted.forEach((c) => { if (c.city) cityCounts[c.city] = (cityCounts[c.city] ?? 0) + 1 })
+  const topCities = Object.entries(cityCounts).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([city]) => city)
+
+  // Gender split
+  const males = shortlisted.filter((c) => c.gender === 'M').length
+  const females = shortlisted.filter((c) => c.gender === 'F').length
+  const genderKnown = males + females
+  const genderSplit = genderKnown > 0 ? `${males}M / ${females}F` : '—'
+
+  // Warning conditions
+  const topCityCount = topCities[0] ? (cityCounts[topCities[0]] ?? 0) : 0
+  const lowDiversity =
+    (shortlisted.length > 0 && topCityCount / shortlisted.length >= 0.8) ||
+    (ageRange != null && ageRange < 10)
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-btn border border-line bg-paper px-3 py-2 text-xs text-muted">
+      <span className="flex items-center gap-1 font-semibold text-ink">
+        <Gauge className="h-3.5 w-3.5 text-muted" />
+        Shortlist diversity
+      </span>
+      <span className="h-3 w-px bg-line" />
+      {ageMin != null && ageMax != null ? (
+        <span>Age: <strong className="text-ink">{ageMin}–{ageMax}</strong></span>
+      ) : (
+        <span>Age: <strong className="text-ink">—</strong></span>
+      )}
+      <span className="h-3 w-px bg-line" />
+      <span>Top cities: <strong className="text-ink">{topCities.length > 0 ? topCities.join(', ') : '—'}</strong></span>
+      <span className="h-3 w-px bg-line" />
+      <span>Gender: <strong className="text-ink">{genderSplit}</strong></span>
+      {lowDiversity && (
+        <>
+          <span className="h-3 w-px bg-line" />
+          <span className="flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-700">
+            Low diversity · explore new profiles
+          </span>
+        </>
+      )}
+    </div>
+  )
+}
+
+/* ── Pairwise comparison modal ────────────────────────────────────────────── */
+
+const SCENE_LABELS = ['Authenticity', 'Charisma', 'Originality', 'Watchability', 'Camera presence']
+const SCENE_VALUES_A = [88, 82, 74, 91, 68]
+const SCENE_VALUES_B = [76, 90, 85, 70, 63]
+
+function PairwiseModal({
+  candidateA,
+  candidateB,
+  onClose,
+}: {
+  candidateA: Candidate
+  candidateB: Candidate
+  onClose: () => void
+}) {
+  const toast = useToast()
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-ink/70 p-4" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex w-full max-w-3xl flex-col gap-4 rounded-card bg-card p-6 shadow-card-hover"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-2 text-sm font-bold text-ink">
+            <Columns2 className="h-4 w-4 text-purple-500" />
+            Compare candidates
+          </span>
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-ink/5 hover:text-ink">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Side by side */}
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            { candidate: candidateA, values: SCENE_VALUES_A, label: 'A' },
+            { candidate: candidateB, values: SCENE_VALUES_B, label: 'B' },
+          ].map(({ candidate, values, label }) => (
+            <div key={candidate.id} className="flex flex-col gap-3 rounded-btn border border-line p-4">
+              <div className="flex items-center gap-3">
+                <div className="relative shrink-0">
+                  {candidate.avatar ? (
+                    <img src={asset(candidate.avatar)} alt={candidate.name} className="h-16 w-16 rounded-full object-cover ring-2 ring-purple-400" />
+                  ) : (
+                    <Avatar name={candidate.name} size="xl" />
+                  )}
+                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-purple-500 text-[10px] font-bold text-white">
+                    {label}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-bold text-ink">{candidate.name}</p>
+                  <p className="text-xs text-muted">{candidate.age} y/o · {candidate.city}</p>
+                  <p className="text-sm font-bold text-link">{candidateScore(candidate)}</p>
+                </div>
+              </div>
+              <div>
+                <Tag tone={candidate.status === 'cast' || candidate.status === 'offer' ? 'good' : candidate.status === 'new' ? 'neutral' : 'link'}>
+                  {BOARD_COLUMN_LABELS[candidate.status]}
+                </Tag>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-label text-muted">Scene analysis</p>
+                {SCENE_LABELS.map((label, i) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <span className="w-28 truncate text-[11px] text-muted">{label}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
+                      <div
+                        className="h-full rounded-full bg-purple-400 transition-all"
+                        style={{ width: `${values[i]}%` }}
+                      />
+                    </div>
+                    <span className="w-6 text-right text-[11px] font-semibold text-ink">{values[i]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer buttons */}
+        <div className="flex items-center justify-center gap-3 border-t border-line pt-3">
+          <Button
+            variant="secondary"
+            onClick={() => { toast('Preference saved'); onClose() }}
+          >
+            Select A
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => { toast('Preference saved'); onClose() }}
+          >
+            Select B
+          </Button>
+          <Button variant="primary" onClick={onClose} icon={<X className="h-3.5 w-3.5" />}>
+            Close
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

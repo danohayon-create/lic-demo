@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { X, Crop, ChevronRight, Check, Send, RotateCcw, Zap, BookOpen, Mic, PersonStanding } from 'lucide-react'
+import { X, Crop, ChevronRight, Check, Send, RotateCcw, Zap, BookOpen, Mic, PersonStanding, ListChecks } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useToast } from '@/components/Toast'
 import { discoverCastingsById, sidesById, type SideLine } from '@/data'
@@ -9,6 +9,13 @@ import { asset } from '@/lib/asset'
 // ── Self-tape types ──────────────────────────────────────────────────────────
 
 const TAPE_TYPES = [
+  {
+    id: 'structured',
+    label: 'Structured audition',
+    desc: '4 guided segments · recommended for reality TV',
+    icon: ListChecks,
+    color: 'bg-link/10 text-link',
+  },
   {
     id: 'scene',
     label: 'Scene with script',
@@ -39,6 +46,32 @@ const TAPE_TYPES = [
   },
 ]
 
+// ── 4-segment structure for reality TV ──────────────────────────────────────
+
+const SEGMENTS = [
+  { label: 'Who are you?', duration: 30, hint: 'Speak directly to camera · no editing · reveal your personality' },
+  { label: 'Structured challenge', duration: 45, hint: 'Tell the most unbelievable true story from your life' },
+  { label: 'Improvisation', duration: 60, hint: 'You just won something you never expected · react now' },
+  { label: 'Wild card', duration: 30, hint: 'Anything you want · surprise us' },
+]
+
+const SEGMENT_COLORS = [
+  'bg-link text-white',
+  'bg-gold text-ink',
+  'bg-signal-good text-white',
+  'bg-signal-no text-white',
+]
+
+function getSegment(elapsed: number): { index: number; remaining: number } {
+  const boundaries = [0, 30, 75, 135, 165]
+  for (let i = 0; i < 4; i++) {
+    if (elapsed < boundaries[i + 1]) {
+      return { index: i, remaining: boundaries[i + 1] - elapsed }
+    }
+  }
+  return { index: 3, remaining: 0 }
+}
+
 const RATIOS: { label: string; value: string }[] = [
   { label: '16:9', value: '16 / 9' },
   { label: '4:5', value: '4 / 5' },
@@ -54,14 +87,27 @@ export function SelfTape() {
   const casting = discoverCastingsById[id] ?? discoverCastingsById['evermore']
 
   const [tapeType, setTapeType] = useState<string | null>(null)
+  const [showSegmentGuide, setShowSegmentGuide] = useState(false)
 
   if (!tapeType) {
     return (
       <TypeSelection
         castingTitle={casting.title}
         roleName={casting.roleName}
-        onSelect={setTapeType}
+        onSelect={(t) => {
+          setTapeType(t)
+          if (t === 'structured') setShowSegmentGuide(true)
+        }}
         onBack={() => navigate(casting.hasDetail ? `/app/casting/${casting.id}` : '/app')}
+      />
+    )
+  }
+
+  if (showSegmentGuide) {
+    return (
+      <SegmentGuide
+        onStart={() => setShowSegmentGuide(false)}
+        onBack={() => { setTapeType(null); setShowSegmentGuide(false) }}
       />
     )
   }
@@ -133,6 +179,70 @@ function TypeSelection({
   )
 }
 
+// ── Segment guide ────────────────────────────────────────────────────────────
+
+function SegmentGuide({ onStart, onBack }: { onStart: () => void; onBack: () => void }) {
+  const totalDuration = SEGMENTS.reduce((s, seg) => s + seg.duration, 0)
+  return (
+    <div className="flex h-full flex-col bg-ink text-white">
+      <div className="flex items-center justify-between px-4 pb-3 pt-11">
+        <button onClick={onBack} className="flex h-9 w-9 items-center justify-center rounded-full text-white/70 hover:bg-white/10">
+          <X className="h-5 w-5" />
+        </button>
+        <span className="text-sm font-bold tracking-wide">STRUCTURED AUDITION</span>
+        <div className="h-9 w-9" />
+      </div>
+
+      <div className="flex flex-1 flex-col px-5 pb-8">
+        <p className="mb-1 text-center text-[11px] font-semibold uppercase tracking-widest text-white/40">
+          4 segments · {totalDuration}s total
+        </p>
+        <h2 className="mb-6 text-center text-xl font-bold">Your audition structure</h2>
+
+        <div className="flex flex-col gap-3">
+          {SEGMENTS.map((seg, i) => (
+            <div key={i} className="flex items-start gap-3 rounded-2xl bg-white/8 px-4 py-3.5">
+              <span className={cn('mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold', SEGMENT_COLORS[i])}>
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-white">{seg.label}</p>
+                  <span className="ml-2 shrink-0 rounded-full bg-white/10 px-2 py-0.5 font-mono text-[11px] text-white/60">
+                    {seg.duration}s
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-white/50">{seg.hint}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* segment timeline */}
+        <div className="mt-5 flex h-2 overflow-hidden rounded-full">
+          {SEGMENTS.map((seg, i) => (
+            <div
+              key={i}
+              className={cn('h-full', SEGMENT_COLORS[i].split(' ')[0])}
+              style={{ width: `${(seg.duration / totalDuration) * 100}%` }}
+            />
+          ))}
+        </div>
+        <p className="mt-1.5 text-center text-[11px] text-white/40">
+          The app will guide you through each segment automatically
+        </p>
+
+        <button
+          onClick={onStart}
+          className="mt-8 flex w-full items-center justify-center gap-2 rounded-btn bg-cream py-3.5 text-sm font-bold text-ink"
+        >
+          Start recording
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Camera screen ────────────────────────────────────────────────────────────
 
 function Camera({ id, tapeType }: { id: string; tapeType: string }) {
@@ -180,6 +290,10 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
   const sec = elapsed % 60
   const timecode = `00:${pad(min)}:${pad(sec)}`
   const typeLabel = TAPE_TYPES.find((t) => t.id === tapeType)?.label ?? ''
+
+  const isStructured = tapeType === 'structured'
+  const { index: segIdx, remaining: segRemaining } = getSegment(elapsed)
+  const currentSeg = SEGMENTS[segIdx]
 
   return (
     <div className="flex h-full flex-col bg-ink text-white">
@@ -233,6 +347,31 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
           </div>
           <span className="absolute right-3 top-3 rounded bg-black/55 px-1.5 py-0.5 font-mono text-[10px] font-semibold">HD</span>
 
+          {/* structured segment overlay */}
+          {isStructured && recording && (
+            <div className="absolute inset-x-3 top-10 flex flex-col items-center gap-1">
+              <div className="flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 backdrop-blur">
+                <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold', SEGMENT_COLORS[segIdx])}>
+                  {segIdx + 1}
+                </span>
+                <span className="text-xs font-semibold text-white">{currentSeg.label}</span>
+                <span className="font-mono text-[10px] text-white/60">{segRemaining}s</span>
+              </div>
+              {/* segment progress dots */}
+              <div className="flex gap-1.5">
+                {SEGMENTS.map((_, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      'h-1.5 rounded-full transition-all',
+                      i < segIdx ? 'w-3 bg-white/60' : i === segIdx ? 'w-5 bg-white' : 'w-1.5 bg-white/20',
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2 text-[11px]">
             {['Framing', 'Audio', 'Light cool'].map((c) => (
               <span key={c} className="flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-white/90">
@@ -259,6 +398,24 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
           </button>
         ))}
       </div>
+
+      {/* structured segment hint bar */}
+      {isStructured && !recording && (
+        <div className="mx-4 mb-1 rounded-xl bg-white/5 p-3 ring-1 ring-white/10">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="font-mono text-[10px] font-semibold uppercase tracking-label text-white/50">Structured audition</span>
+            <span className="font-mono text-[10px] text-white/50">4 segments · 165s</span>
+          </div>
+          <div className="flex gap-1.5">
+            {SEGMENTS.map((seg, i) => (
+              <div key={i} className="flex flex-1 flex-col gap-0.5">
+                <div className={cn('h-1 rounded-full', SEGMENT_COLORS[i].split(' ')[0])} />
+                <span className="text-[9px] text-white/40 truncate">{seg.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* teleprompter — compact, only for scene type */}
       {tapeType === 'scene' && <Teleprompter lines={sides.lines} recording={recording} />}
@@ -300,6 +457,9 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
             <p className="mt-1 text-sm text-white/70">
               {casting.title} · {casting.roleName} · {timecode}
             </p>
+            {isStructured && (
+              <p className="mt-1 text-xs text-white/50">4 segments · AI analysis ready in ~2 min</p>
+            )}
           </div>
           <button
             onClick={() => { toast('Audition sent'); navigate('/app/auditions') }}
