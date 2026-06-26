@@ -222,6 +222,8 @@ export interface Project {
   synopsis?: string
   /** Director's note or casting director's brief message. */
   directorBrief?: string
+  /** 'scripted' = film/TV/ad with named roles; 'non_scripted' = reality/flow TV with numbered contestant slots. Defaults to 'scripted' when absent. */
+  format?: 'scripted' | 'non_scripted'
 }
 
 /** A point in the "submissions over time" chart. */
@@ -246,7 +248,7 @@ export interface ActivityItem {
   time: string
 }
 
-export type RoleType = 'Lead' | 'Supporting'
+export type RoleType = 'Lead' | 'Supporting' | 'Contestant'
 export type RoleStatus = 'Reviewing' | 'Callbacks' | 'Open'
 export type AuditionFlow = 'Open Call' | 'Invited' | 'In-House'
 

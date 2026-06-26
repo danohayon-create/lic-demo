@@ -305,7 +305,7 @@ export function SelectionConsole() {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 border-t border-line pt-4 sm:grid-cols-4">
-          <StatCell value={roles.length} label="Roles" />
+          <StatCell value={project.kpis?.roles.total ?? roles.length} label={project.format === 'non_scripted' ? 'Contestant slots' : 'Roles'} />
           <StatCell value={project.kpis?.submissions.total ?? allCandidates.length} label="Submissions" />
           <StatCell value={project.kpis?.shortlist.total ?? shortlistCount} label="Shortlist" />
           <StatCell value={project.kpis?.booked ?? bookedCount} label="Booked" />
@@ -588,7 +588,7 @@ function FilterBar({
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <FilterDropdown label="Role" count={filters.roleIds.length}>
+        <FilterDropdown label="Role / Candidate" count={filters.roleIds.length}>
           <CheckList
             options={roles.map((r) => ({ value: r.id, label: r.name }))}
             selected={filters.roleIds}

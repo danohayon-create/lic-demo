@@ -5,7 +5,7 @@ import { Card, Button, Tag } from '@/components/ui'
 import { projectsById, rolesByProject } from '@/data'
 import { useProjectCasting, ROLE_CASTING_DEFAULTS, type AuditionFormat, type RoleCastingStatus } from '@/data/castingState'
 import { cn } from '@/lib/cn'
-import { Stepper, WORKFLOW_STEPS } from './NewCasting'
+import { Stepper, WORKFLOW_STEPS_SCRIPTED } from './NewCasting'
 import { asset } from '@/lib/asset'
 
 const FORMAT_META: Record<AuditionFormat, { label: string; icon: React.ReactNode; desc: string; color: string }> = {
@@ -84,7 +84,7 @@ export function CastingRecap() {
       </div>
 
       {/* Stepper */}
-      <Stepper current={6} labels={WORKFLOW_STEPS} />
+      <Stepper current={6} labels={WORKFLOW_STEPS_SCRIPTED} />
 
       {/* Project card */}
       <Card className="flex flex-col gap-4">

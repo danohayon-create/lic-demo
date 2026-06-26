@@ -48,7 +48,7 @@ const PIPELINE_BG_CLASS: Record<RolePipelineStatus, string> = {
   Cast: 'bg-signal-good-bg text-signal-good',
 }
 
-type Tab = 'all' | 'lead' | 'supporting' | 'booked'
+type Tab = 'all' | 'lead' | 'supporting' | 'booked' | 'contestants'
 
 export function Dashboard() {
   const toast = useToast()
@@ -62,8 +62,10 @@ export function Dashboard() {
   const kpis = project.kpis
   const [tab, setTab] = useState<Tab>('all')
 
+  const isNonScripted = project.format === 'non_scripted'
+
   const visibleRoles =
-    tab === 'all'
+    tab === 'all' || tab === 'contestants'
       ? roles
       : tab === 'lead'
         ? roles.filter((r) => r.type === 'Lead')
@@ -72,12 +74,17 @@ export function Dashboard() {
           : []
 
   const tabs: { key: Tab; label: string; count: number }[] = kpis
-    ? [
-        { key: 'all', label: 'All roles', count: kpis.roles.total },
-        { key: 'lead', label: 'Lead', count: kpis.roles.lead },
-        { key: 'supporting', label: 'Supporting', count: kpis.roles.supporting },
-        { key: 'booked', label: 'Booked', count: kpis.booked },
-      ]
+    ? isNonScripted
+      ? [
+          { key: 'contestants', label: 'All contestants', count: kpis.roles.total },
+          { key: 'booked', label: 'Booked', count: kpis.booked },
+        ]
+      : [
+          { key: 'all', label: 'All roles', count: kpis.roles.total },
+          { key: 'lead', label: 'Lead', count: kpis.roles.lead },
+          { key: 'supporting', label: 'Supporting', count: kpis.roles.supporting },
+          { key: 'booked', label: 'Booked', count: kpis.booked },
+        ]
     : []
 
   const submissions = submissionsOverTimeByProject[project.id]
@@ -119,7 +126,7 @@ export function Dashboard() {
                 ))}
               </div>
             ) : (
-              <KpiRow kpis={kpis} />
+              <KpiRow kpis={kpis} isNonScripted={isNonScripted} />
             )}
 
             <Card flush className="overflow-hidden">
@@ -160,7 +167,7 @@ export function Dashboard() {
                 </div>
               </div>
 
-              <RolesTable roles={visibleRoles} projectId={project.id} />
+              <RolesTable roles={visibleRoles} projectId={project.id} isNonScripted={isNonScripted} />
             </Card>
 
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -322,13 +329,17 @@ function ProjectHeader({
 
 /* ── KPI row ──────────────────────────────────────────────────────────────── */
 
-function KpiRow({ kpis: k }: { kpis: ProjectKPIs }) {
+function KpiRow({ kpis: k, isNonScripted }: { kpis: ProjectKPIs; isNonScripted?: boolean }) {
   const cards = [
-    { label: 'Roles', value: k.roles.total, sub: `${k.roles.lead} lead · ${k.roles.supporting} supporting` },
+    {
+      label: isNonScripted ? 'Contestant slots' : 'Roles',
+      value: k.roles.total,
+      sub: isNonScripted ? `${k.booked} selected · ${k.roles.total - k.booked} open` : `${k.roles.lead} lead · ${k.roles.supporting} supporting`,
+    },
     { label: 'Submissions', value: k.submissions.total, sub: `+${k.submissions.today} today`, accent: true },
     { label: 'Shortlist', value: k.shortlist.total, sub: `${k.shortlist.readyForCallback} ready for callback` },
     { label: 'Callbacks', value: k.callbacks.total, sub: `next: ${k.callbacks.next}` },
-    { label: 'Booked', value: k.booked, sub: 'lead booked' },
+    { label: 'Booked', value: k.booked, sub: isNonScripted ? 'contestants selected' : 'lead booked' },
   ]
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
@@ -347,20 +358,23 @@ function KpiRow({ kpis: k }: { kpis: ProjectKPIs }) {
 
 /* ── Roles table ──────────────────────────────────────────────────────────── */
 
-function RolesTable({ roles, projectId }: { roles: Role[]; projectId: string }) {
+function RolesTable({ roles, projectId, isNonScripted }: { roles: Role[]; projectId: string; isNonScripted?: boolean }) {
   if (roles.length === 0) {
     return (
       <div className="px-5 py-12 text-center text-sm text-muted">
-        The booked role isn't shown in this sample view.
+        The booked slot isn't shown in this sample view.
       </div>
     )
   }
+  const headers = isNonScripted
+    ? ['Contestant Slot', 'Submissions', 'Shortlist', 'Status', 'Casting', 'Deadline']
+    : ['Role', 'Type', 'Submissions', 'Shortlist', 'Status', 'Casting', 'Deadline']
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[760px] text-sm">
         <thead>
           <tr className="border-b border-line text-left">
-            {['Role', 'Type', 'Submissions', 'Shortlist', 'Status', 'Casting', 'Deadline'].map((h) => (
+            {headers.map((h) => (
               <th
                 key={h}
                 className={cn(
@@ -375,7 +389,7 @@ function RolesTable({ roles, projectId }: { roles: Role[]; projectId: string }) 
         </thead>
         <tbody>
           {roles.map((r) => (
-            <RoleRow key={r.id} role={r} projectId={projectId} />
+            <RoleRow key={r.id} role={r} projectId={projectId} isNonScripted={isNonScripted} />
           ))}
         </tbody>
       </table>
@@ -383,7 +397,7 @@ function RolesTable({ roles, projectId }: { roles: Role[]; projectId: string }) 
   )
 }
 
-function RoleRow({ role: r, projectId }: { role: Role; projectId: string }) {
+function RoleRow({ role: r, projectId, isNonScripted }: { role: Role; projectId: string; isNonScripted?: boolean }) {
   const navigate = useNavigate()
   const isLesOmbres = projectId === 'les-ombres-de-midi'
 
@@ -402,7 +416,7 @@ function RoleRow({ role: r, projectId }: { role: Role; projectId: string }) {
   return (
     <tr className="border-b border-line last:border-0 hover:bg-paper/50">
       <td className="px-5 py-3 font-semibold text-ink">{r.name}</td>
-      <td className="px-5 py-3 text-muted">{r.type}</td>
+      {!isNonScripted && <td className="px-5 py-3 text-muted">{r.type}</td>}
       <td className="px-5 py-3">
         <div className="flex items-center gap-3">
           <span className="min-w-[3.5rem] font-semibold text-ink">{submissionsCount}</span>

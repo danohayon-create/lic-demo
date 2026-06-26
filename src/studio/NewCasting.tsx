@@ -98,8 +98,28 @@ const ANALYSIS_STEPS_WITH_VIDEO = [
   'Generating project summary…',
 ]
 
-/** The 5-step casting workflow, shown by the `Stepper` on every screen of the flow. */
-export const WORKFLOW_STEPS = ['Document', 'Analyse', 'Rôles', 'Format', 'Publish']
+const ANALYSIS_STEPS_NON_SCRIPTED_DOC = [
+  'Reading show brief…',
+  'Analysing target contestant profile…',
+  'Mapping key personality traits…',
+  'Generating casting brief…',
+]
+
+const ANALYSIS_STEPS_NON_SCRIPTED_VIDEO = [
+  "Watching show brief video…",
+  'Reading submission brief…',
+  'Analysing target contestant profile…',
+  'Cross-referencing video & document…',
+  'Generating casting brief…',
+]
+
+/** The 5-step casting workflow labels, indexed by format. */
+const WORKFLOW_STEPS: Record<'scripted' | 'non_scripted', string[]> = {
+  scripted:     ['Document', 'Analyse', 'Roles',      'Format', 'Publish'],
+  non_scripted: ['Brief',    'Analyse', 'Contestants', 'Format', 'Publish'],
+}
+/** Legacy export kept for any external imports. */
+export const WORKFLOW_STEPS_SCRIPTED = WORKFLOW_STEPS.scripted
 
 // Maps wizard mock role ids (r1…r4) to the real data-layer role ids used by
 // CastingRecap / CastingSearch, in extraction order.
@@ -142,6 +162,7 @@ type VideoBrief = { name: string; url: string }
 export function NewCasting() {
   const navigate = useNavigate()
   const toast = useToast()
+  const [castingFormat, setCastingFormat] = useState<'scripted' | 'non_scripted' | null>(null)
   const [step, setStep] = useState(1)
 
   // Shared state across steps
@@ -152,14 +173,22 @@ export function NewCasting() {
   const [castingStatus, setCastingStatus] = useState<Record<string, CastingStatus>>({})
   const [globalFormat, setGlobalFormat] = useState<AuditionFormat>('open-call')
   const [roleFormats, setRoleFormats] = useState<Record<string, AuditionFormat>>({})
+  const [contestantCount, setContestantCount] = useState(10)
+  const [contestantProfile, setContestantProfile] = useState('')
 
   const goBack = () => {
-    if (step === 1) navigate(-1)
-    else if (step === 3) setStep(1) // skip step 2 (auto-advanced)
-    else setStep((s) => s - 1)
+    if (castingFormat === null) {
+      navigate(-1)
+    } else if (step === 1) {
+      setCastingFormat(null)
+    } else if (step === 3) {
+      setStep(1) // skip step 2 (auto-advanced)
+    } else {
+      setStep((s) => s - 1)
+    }
   }
 
-  const publish = () => {
+  const publishScripted = () => {
     const projectId = 'les-ombres-de-midi'
     const roleState: Record<string, { format: AuditionFormat; status: 'not-opened' | 'ready' }> = {}
     extractedRoles.forEach((role) => {
@@ -172,15 +201,35 @@ export function NewCasting() {
       }
     })
     setProjectCasting(projectId, roleState)
-    toast('Casting publié ! Les talents vont recevoir le brief.')
+    toast('Casting published! Talents will receive the brief.')
     navigate(`/studio/casting-recap?p=${projectId}`)
   }
 
+  const publishNonScripted = () => {
+    toast(`Casting published! ${contestantCount} contestant slots created.`)
+    navigate('/studio/selection?p=masterchef-australia-s17&view=wall')
+  }
+
   const headingFor = (s: number) => {
+    if (castingFormat === 'non_scripted') {
+      if (s <= 2) return 'Import your show brief'
+      if (s === 3) return 'Configure contestant slots'
+      if (s === 4) return 'Choose audition format'
+      return 'Publish your casting'
+    }
     if (s <= 2) return 'Import your project material'
     if (s === 3) return 'Review & configure roles'
     if (s === 4) return 'Choose audition format'
     return 'Publish your casting'
+  }
+
+  if (castingFormat === null) {
+    return (
+      <StepFormatChoice
+        onChoose={(f) => { setCastingFormat(f); setStep(1) }}
+        onBack={() => navigate(-1)}
+      />
+    )
   }
 
   return (
@@ -194,13 +243,13 @@ export function NewCasting() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0">
-          <span className="tech-label">New casting</span>
+          <span className="tech-label">New casting · {castingFormat === 'non_scripted' ? 'Non-scripted' : 'Scripted'}</span>
           <h1 className="text-xl font-bold tracking-tight text-ink">{headingFor(step)}</h1>
         </div>
       </div>
 
       {/* Stepper */}
-      <Stepper current={step} labels={WORKFLOW_STEPS} />
+      <Stepper current={step} labels={WORKFLOW_STEPS[castingFormat]} />
 
       {/* Step content */}
       <AnimatePresence mode="wait">
@@ -219,10 +268,11 @@ export function NewCasting() {
               onVideoBriefs={setVideoBriefs}
               onDone={() => setStep(2)}
               onBack={goBack}
+              isNonScripted={castingFormat === 'non_scripted'}
             />
           )}
-          {step === 2 && <StepAnalyzing hasVideo={videoBriefs.length > 0} onDone={() => setStep(3)} />}
-          {step === 3 && (
+          {step === 2 && <StepAnalyzing hasVideo={videoBriefs.length > 0} onDone={() => setStep(3)} isNonScripted={castingFormat === 'non_scripted'} />}
+          {step === 3 && castingFormat === 'scripted' && (
             <StepRoles
               videoBriefs={videoBriefs}
               onVideoBriefs={setVideoBriefs}
@@ -236,18 +286,29 @@ export function NewCasting() {
               onBack={goBack}
             />
           )}
+          {step === 3 && castingFormat === 'non_scripted' && (
+            <StepCandidates
+              count={contestantCount}
+              onCount={setContestantCount}
+              profile={contestantProfile}
+              onProfile={setContestantProfile}
+              onNext={() => setStep(4)}
+              onBack={goBack}
+            />
+          )}
           {step === 4 && (
             <StepFormat
               globalFormat={globalFormat}
               onGlobalFormat={setGlobalFormat}
               roleFormats={roleFormats}
               onRoleFormat={(id, f) => setRoleFormats((p) => ({ ...p, [id]: f }))}
-              castingStatus={castingStatus}
+              castingStatus={castingFormat === 'scripted' ? castingStatus : {}}
               onNext={() => setStep(5)}
               onBack={goBack}
+              isNonScripted={castingFormat === 'non_scripted'}
             />
           )}
-          {step === 5 && (
+          {step === 5 && castingFormat === 'scripted' && (
             <StepPublish
               videoBriefs={videoBriefs}
               roleBriefs={roleBriefs}
@@ -255,7 +316,16 @@ export function NewCasting() {
               castingStatus={castingStatus}
               globalFormat={globalFormat}
               roleFormats={roleFormats}
-              onPublish={publish}
+              onPublish={publishScripted}
+              onBack={goBack}
+            />
+          )}
+          {step === 5 && castingFormat === 'non_scripted' && (
+            <StepPublishNonScripted
+              contestantCount={contestantCount}
+              profile={contestantProfile}
+              globalFormat={globalFormat}
+              onPublish={publishNonScripted}
               onBack={goBack}
             />
           )}
@@ -315,6 +385,7 @@ function StepUpload({
   onVideoBriefs,
   onDone,
   onBack,
+  isNonScripted,
 }: {
   documents: UploadedDoc[]
   onDocuments: (docs: UploadedDoc[]) => void
@@ -322,6 +393,7 @@ function StepUpload({
   onVideoBriefs: (v: VideoBrief[]) => void
   onDone: () => void
   onBack: () => void
+  isNonScripted?: boolean
 }) {
   const docInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
@@ -355,8 +427,9 @@ function StepUpload({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-ink">
-        Upload a script or character breakdown, and/or a video brief from the director. Let It Cast's
-        AI will analyse everything you provide to build the project structure, roles, and synopsis automatically.
+        {isNonScripted
+          ? "Upload your show brief or casting call document, and/or a video from the production team. Let It Cast's AI will analyse everything to build the contestant profile and casting brief automatically."
+          : "Upload a script or character breakdown, and/or a video brief from the director. Let It Cast's AI will analyse everything you provide to build the project structure, roles, and synopsis automatically."}
       </p>
 
       {/* Document dropzone */}
@@ -489,9 +562,11 @@ function StepUpload({
 
 // ── Step 2 — Analyzing ────────────────────────────────────────────────────────
 
-function StepAnalyzing({ hasVideo, onDone }: { hasVideo: boolean; onDone: () => void }) {
+function StepAnalyzing({ hasVideo, onDone, isNonScripted }: { hasVideo: boolean; onDone: () => void; isNonScripted?: boolean }) {
   const [doneSteps, setDoneSteps] = useState<number[]>([])
-  const steps = hasVideo ? ANALYSIS_STEPS_WITH_VIDEO : ANALYSIS_STEPS_DOC_ONLY
+  const steps = isNonScripted
+    ? (hasVideo ? ANALYSIS_STEPS_NON_SCRIPTED_VIDEO : ANALYSIS_STEPS_NON_SCRIPTED_DOC)
+    : (hasVideo ? ANALYSIS_STEPS_WITH_VIDEO : ANALYSIS_STEPS_DOC_ONLY)
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = []
@@ -924,6 +999,7 @@ function StepFormat({
   castingStatus,
   onNext,
   onBack,
+  isNonScripted,
 }: {
   globalFormat: AuditionFormat
   onGlobalFormat: (f: AuditionFormat) => void
@@ -932,6 +1008,7 @@ function StepFormat({
   castingStatus: Record<string, CastingStatus>
   onNext: () => void
   onBack: () => void
+  isNonScripted?: boolean
 }) {
   const [perRoleOpen, setPerRoleOpen] = useState(false)
 
@@ -979,8 +1056,8 @@ function StepFormat({
         })}
       </div>
 
-      {/* ── Per-role format override ────────────────────────────────────── */}
-      <div className="flex flex-col gap-2 rounded-card border border-line overflow-hidden">
+      {/* ── Per-role format override (scripted only) ───────────────────── */}
+      {!isNonScripted && <div className="flex flex-col gap-2 rounded-card border border-line overflow-hidden">
         <button
           onClick={() => setPerRoleOpen((v) => !v)}
           className="flex items-center justify-between px-4 py-3 text-left hover:bg-paper/60"
@@ -1046,12 +1123,266 @@ function StepFormat({
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </div>}
 
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="text-sm font-medium text-muted hover:text-ink">← Back</button>
         <Button icon={<ArrowRight className="h-4 w-4" />} onClick={onNext}>
           Next — review &amp; publish
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Step 0 — Format choice ────────────────────────────────────────────────────
+
+function StepFormatChoice({
+  onChoose,
+  onBack,
+}: {
+  onChoose: (f: 'scripted' | 'non_scripted') => void
+  onBack: () => void
+}) {
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div className="flex items-center gap-4">
+        <button
+          onClick={onBack}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink hover:bg-ink/5"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div>
+          <span className="tech-label">New casting</span>
+          <h1 className="text-xl font-bold tracking-tight text-ink">What kind of project is this?</h1>
+        </div>
+      </div>
+
+      <p className="text-sm text-muted">
+        Choose your casting format — this determines how roles and submissions are structured across the whole project.
+      </p>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* Scripted */}
+        <button
+          onClick={() => onChoose('scripted')}
+          className="group flex flex-col gap-4 rounded-card border-2 border-line bg-paper p-6 text-left transition-all hover:border-ink/40 hover:bg-card hover:shadow-card"
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-ink text-white ring-4 ring-ink/10 transition-all group-hover:ring-ink/20">
+            <FileText className="h-6 w-6" />
+          </span>
+          <div>
+            <p className="text-base font-bold text-ink">Scripted</p>
+            <p className="mt-1 text-sm font-medium text-muted">Film · TV Series · Commercial</p>
+          </div>
+          <p className="text-sm leading-relaxed text-muted">
+            Character-based casting with named roles, sides, and script analysis. AI extracts your cast list from the script or breakdown automatically.
+          </p>
+          <span className="mt-auto inline-flex items-center gap-1.5 text-xs font-semibold text-ink">
+            Start scripted casting <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </button>
+
+        {/* Non-scripted */}
+        <button
+          onClick={() => onChoose('non_scripted')}
+          className="group flex flex-col gap-4 rounded-card border-2 border-line bg-paper p-6 text-left transition-all hover:border-ink/40 hover:bg-card hover:shadow-card"
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-cream text-ink ring-4 ring-cream/30 transition-all group-hover:ring-cream/50">
+            <Users className="h-6 w-6" />
+          </span>
+          <div>
+            <p className="text-base font-bold text-ink">Non-scripted</p>
+            <p className="mt-1 text-sm font-medium text-muted">Reality TV · Flow · Competition</p>
+          </div>
+          <p className="text-sm leading-relaxed text-muted">
+            Contestant-based casting with numbered slots. Perfect for Big Brother, Survivor, MasterChef, MAFS — define how many contestants you need and find the best candidates.
+          </p>
+          <span className="mt-auto inline-flex items-center gap-1.5 text-xs font-semibold text-ink">
+            Start non-scripted casting <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Step 3 (non-scripted) — Contestant slots ──────────────────────────────────
+
+function StepCandidates({
+  count,
+  onCount,
+  profile,
+  onProfile,
+  onNext,
+  onBack,
+}: {
+  count: number
+  onCount: (n: number) => void
+  profile: string
+  onProfile: (s: string) => void
+  onNext: () => void
+  onBack: () => void
+}) {
+  const slots = Array.from({ length: count }, (_, i) => `Contestant ${i + 1}`)
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Count picker */}
+      <Card className="flex flex-col gap-4">
+        <div className="flex items-baseline justify-between">
+          <span className="tech-label">Contestant slots</span>
+          <span className="text-xs text-muted">Slots can be renamed after creation</span>
+        </div>
+        <p className="text-sm text-muted">
+          How many contestants do you need to cast? Each slot gets a numbered label by default — you can rename them later (e.g. "Returning Player", "Celebrity Wildcard").
+        </p>
+
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => onCount(Math.max(2, count - 1))}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink hover:bg-paper"
+          >
+            <span className="text-lg font-bold">−</span>
+          </button>
+          <div className="flex flex-1 flex-col items-center gap-0.5">
+            <span className="text-4xl font-bold tracking-tight text-ink">{count}</span>
+            <span className="text-xs text-muted">contestant slots</span>
+          </div>
+          <button
+            onClick={() => onCount(Math.min(30, count + 1))}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink hover:bg-paper"
+          >
+            <span className="text-lg font-bold">+</span>
+          </button>
+        </div>
+
+        <input
+          type="range"
+          min={2}
+          max={30}
+          value={count}
+          onChange={(e) => onCount(Number(e.target.value))}
+          className="w-full accent-ink"
+        />
+
+        {/* Preview slots */}
+        <div className="flex flex-wrap gap-1.5">
+          {slots.map((s) => (
+            <span key={s} className="rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-muted ring-1 ring-line">
+              {s}
+            </span>
+          ))}
+        </div>
+      </Card>
+
+      {/* Contestant profile */}
+      <Card className="flex flex-col gap-3">
+        <span className="tech-label">Contestant profile</span>
+        <p className="text-sm text-muted">
+          Describe the type of contestant you're looking for — the AI uses this to rank and filter submissions.
+        </p>
+        <textarea
+          value={profile}
+          onChange={(e) => onProfile(e.target.value)}
+          rows={4}
+          placeholder="e.g. Passionate home cooks of all ages and backgrounds, with a strong personal food story. No professional chefs. Must be available for 3 months in Melbourne…"
+          className="w-full resize-none rounded-card border border-line bg-paper px-3.5 py-3 text-sm text-ink placeholder:text-muted/60 outline-none focus:border-ink/30 focus:ring-1 focus:ring-ink/10"
+        />
+        {profile.trim() === '' && (
+          <button
+            onClick={() => onProfile("Passionate home cooks of all ages and backgrounds, with a distinctive personal food story and genuine culinary skill. No professional chefs. Energetic on-camera presence. Must be available for filming Oct–Jan in Melbourne.")}
+            className="self-start text-xs font-medium text-link hover:underline"
+          >
+            Use MasterChef S17 sample profile →
+          </button>
+        )}
+      </Card>
+
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="text-sm font-medium text-muted hover:text-ink">← Back</button>
+        <Button icon={<ArrowRight className="h-4 w-4" />} onClick={onNext}>
+          Next — audition format
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Step 5 (non-scripted) — Publish ───────────────────────────────────────────
+
+function StepPublishNonScripted({
+  contestantCount,
+  profile,
+  globalFormat,
+  onPublish,
+  onBack,
+}: {
+  contestantCount: number
+  profile: string
+  globalFormat: AuditionFormat
+  onPublish: () => void
+  onBack: () => void
+}) {
+  const FORMAT_LABELS: Record<AuditionFormat, string> = {
+    'open-call': 'Open Call',
+    'invited': 'Invited Only',
+    'in-house': 'In-House',
+  }
+  const slots = Array.from({ length: contestantCount }, (_, i) => `Contestant ${i + 1}`)
+  return (
+    <div className="flex flex-col gap-5">
+      <Card className="flex flex-col gap-4">
+        <span className="tech-label">Casting summary</span>
+
+        <div className="flex items-center gap-3">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cream text-ink ring-4 ring-cream/30">
+            <Users className="h-6 w-6" />
+          </span>
+          <div>
+            <p className="font-bold text-ink">MasterChef Australia — Season 17</p>
+            <p className="text-sm text-muted">Non-scripted · Banijay Australia</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 rounded-card bg-paper p-4 ring-1 ring-line sm:grid-cols-3">
+          <div>
+            <p className="text-label text-xs font-semibold uppercase tracking-label text-muted">Contestant slots</p>
+            <p className="mt-0.5 text-2xl font-bold text-ink">{contestantCount}</p>
+          </div>
+          <div>
+            <p className="text-label text-xs font-semibold uppercase tracking-label text-muted">Audition format</p>
+            <p className="mt-0.5 font-semibold text-ink">{FORMAT_LABELS[globalFormat]}</p>
+          </div>
+          <div>
+            <p className="text-label text-xs font-semibold uppercase tracking-label text-muted">Platform</p>
+            <p className="mt-0.5 font-semibold text-ink">Let It Cast</p>
+          </div>
+        </div>
+
+        {profile && (
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-label text-muted">Contestant profile</p>
+            <p className="text-sm leading-relaxed text-ink">{profile}</p>
+          </div>
+        )}
+
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-label text-muted">Contestant slots ({contestantCount})</p>
+          <div className="flex flex-wrap gap-1.5">
+            {slots.map((s) => (
+              <span key={s} className="rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-muted ring-1 ring-line">
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <div className="flex items-center justify-between">
+        <button onClick={onBack} className="text-sm font-medium text-muted hover:text-ink">← Back</button>
+        <Button icon={<Zap className="h-4 w-4" />} onClick={onPublish}>
+          Publish casting
         </Button>
       </div>
     </div>
