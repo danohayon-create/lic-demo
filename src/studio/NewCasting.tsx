@@ -1693,13 +1693,30 @@ function StepRecapNonScripted({
   onBack: () => void
 }) {
   const navigate = useNavigate()
+  const toast    = useToast()
+  const [appliedSlots, setAppliedSlots] = useState<Set<string>>(new Set())
+
   const slots = Array.from({ length: contestantCount }, (_, i) => ({
     label: `Contestant ${i + 1}`,
     id: NS_SLOT_IDS[i] ?? `slot-${i + 1}`,
   }))
+
+  const allApplied = appliedSlots.size === slots.length
+
   const FORMAT_LABEL: Record<AuditionFormat, string> = {
     'open-call': 'Open Call', 'invited': 'Invited Only', 'in-house': 'In-House',
   }
+
+  const applyAll = () => {
+    setAppliedSlots(new Set(slots.map((s) => s.id)))
+    toast(`Matching Profile applied to all ${contestantCount} contestant slots`)
+  }
+
+  const handleSlotClick = (slot: { id: string; label: string }) => {
+    setAppliedSlots((prev) => new Set([...prev, slot.id]))
+    navigate(`/studio/casting-search?p=masterchef-australia-s17&role=${slot.id}`)
+  }
+
   return (
     <div className="flex flex-col gap-5">
       {/* Project recap */}
@@ -1715,33 +1732,73 @@ function StepRecapNonScripted({
           </div>
         </div>
         <p className="text-sm text-muted">
-          Your casting is live. Use the "Matching Profile" button on each slot to run a targeted talent search. LIC will surface the strongest candidates based on your contestant profile.
+          Run "Matching Profile for all contestants" to apply your profile across every slot at once, then adjust individual slots as needed.
         </p>
       </Card>
 
+      {/* Match-all CTA */}
+      <button
+        onClick={applyAll}
+        disabled={allApplied}
+        className={cn(
+          'flex items-center justify-center gap-2.5 rounded-card border-2 px-5 py-4 text-sm font-bold transition-all',
+          allApplied
+            ? 'border-signal-good/30 bg-signal-good-bg text-signal-good cursor-default'
+            : 'border-ink bg-ink text-white hover:bg-ink/90 active:scale-[0.99]',
+        )}
+      >
+        {allApplied ? (
+          <>
+            <Check className="h-5 w-5" />
+            Matching Profile applied to all {contestantCount} contestants
+          </>
+        ) : (
+          <>
+            <Sparkles className="h-5 w-5" />
+            Matching Profile for all contestants
+          </>
+        )}
+      </button>
+
       {/* Slots list */}
       <div className="flex flex-col gap-2">
-        <span className="tech-label">{contestantCount} contestant slots</span>
-        {slots.map((slot) => (
-          <motion.div key={slot.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
-            <Card className="flex items-center gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cream text-xs font-bold text-ink ring-2 ring-cream/40">
-                {slot.label.replace('Contestant ', '')}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-ink">{slot.label}</p>
-                <p className="text-xs text-muted">Open · {FORMAT_LABEL[globalFormat]}</p>
-              </div>
-              <Button
-                variant="primary"
-                icon={<Sparkles className="h-4 w-4" />}
-                onClick={() => navigate(`/studio/casting-search?p=masterchef-australia-s17&role=${slot.id}`)}
-              >
-                Matching Profile
-              </Button>
-            </Card>
-          </motion.div>
-        ))}
+        <div className="flex items-baseline justify-between">
+          <span className="tech-label">{contestantCount} contestant slots</span>
+          {appliedSlots.size > 0 && !allApplied && (
+            <span className="text-xs text-muted">{appliedSlots.size} / {contestantCount} matched</span>
+          )}
+        </div>
+        {slots.map((slot, i) => {
+          const applied = appliedSlots.has(slot.id)
+          return (
+            <motion.div key={slot.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+              <Card className="flex items-center gap-3">
+                <span className={cn(
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-2 transition-colors',
+                  applied
+                    ? 'bg-signal-good text-white ring-signal-good/30'
+                    : 'bg-cream text-ink ring-cream/40',
+                )}>
+                  {applied ? <Check className="h-4 w-4" /> : slot.label.replace('Contestant ', '')}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-ink">{slot.label}</p>
+                  <p className="text-xs text-muted">
+                    {applied ? 'Profile applied — ' : ''}Open · {FORMAT_LABEL[globalFormat]}
+                  </p>
+                </div>
+                <Button
+                  variant={applied ? 'secondary' : 'primary'}
+                  icon={applied ? <Pencil className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+                  onClick={() => handleSlotClick(slot)}
+                  className={applied ? 'border-signal-good/30 text-signal-good hover:bg-signal-good-bg' : ''}
+                >
+                  {applied ? 'Modify' : 'Matching Profile'}
+                </Button>
+              </Card>
+            </motion.div>
+          )
+        })}
       </div>
 
       {/* Footer */}
