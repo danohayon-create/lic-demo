@@ -111,9 +111,12 @@ export function CastingSearch() {
   const loading = useBriefLoading()
 
   const [searchParams] = useSearchParams()
-  const projectId  = searchParams.get('p') || 'les-ombres-de-midi'
-  const roleId     = searchParams.get('role') || ''
-  const agencyParam = searchParams.get('agency') || ''
+  const projectId      = searchParams.get('p') || 'les-ombres-de-midi'
+  const roleId         = searchParams.get('role') || ''
+  const agencyParam    = searchParams.get('agency') || ''
+  const allContestants = searchParams.get('allContestants') === 'true'
+  const returnToNs     = searchParams.get('returnToNs') === 'true'
+  const slotsCount     = parseInt(searchParams.get('slots') ?? '0') || 10
 
   const project  = projectsById[projectId] ?? projectsById['les-ombres-de-midi']
   const allRoles = rolesByProject(project.id)
@@ -189,10 +192,21 @@ export function CastingSearch() {
   }
 
   const handleConfirmCast = () => {
-    setRoleCastingStatus(project.id, roleId, 'ongoing')
-    setConfirmOpen(false)
-    toast(`Let It Cast — sent to ${resultCount.toLocaleString()} talents`)
-    navigate(`/studio/casting-recap?p=${project.id}`)
+    if (allContestants) {
+      sessionStorage.setItem('lic-ns-allMatched', 'true')
+      setConfirmOpen(false)
+      toast(`Matching Profile applied to all ${slotsCount} contestants — ${resultCount.toLocaleString()} talents matched`)
+      navigate('/studio/new-casting')
+    } else if (returnToNs) {
+      setConfirmOpen(false)
+      toast(`Matching Profile updated — ${resultCount.toLocaleString()} talents matched`)
+      navigate('/studio/new-casting')
+    } else {
+      setRoleCastingStatus(project.id, roleId, 'ongoing')
+      setConfirmOpen(false)
+      toast(`Let It Cast — sent to ${resultCount.toLocaleString()} talents`)
+      navigate(`/studio/casting-recap?p=${project.id}`)
+    }
   }
 
   return (
@@ -202,11 +216,11 @@ export function CastingSearch() {
       <Card className="flex flex-col gap-3 border-2 border-ink">
         {/* Back */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => { if (allContestants || returnToNs) navigate('/studio/new-casting'); else navigate(-1) }}
           className="inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-ink"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Back to casting recap
+          {allContestants || returnToNs ? 'Back to casting' : 'Back to casting recap'}
         </button>
 
         <div className="flex items-center gap-3">
@@ -230,11 +244,20 @@ export function CastingSearch() {
 
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
           <span className="text-xs font-semibold text-muted">Searching for:</span>
-          <span className="font-semibold text-ink">{role?.name}</span>
-          <Tag tone={role?.type === 'Lead' ? 'gold' : 'neutral'}>{role?.type}</Tag>
-          <span className="rounded-full bg-paper px-2 py-0.5 font-mono text-[10px] text-muted ring-1 ring-line">
-            {roleDefaults.gender} · {roleDefaults.age}
-          </span>
+          {allContestants ? (
+            <>
+              <span className="font-semibold text-ink">All {slotsCount} contestants</span>
+              <Tag tone="good" icon={<Sparkles className="h-3 w-3" />}>Global profile</Tag>
+            </>
+          ) : (
+            <>
+              <span className="font-semibold text-ink">{role?.name}</span>
+              <Tag tone={role?.type === 'Lead' ? 'gold' : 'neutral'}>{role?.type}</Tag>
+              <span className="rounded-full bg-paper px-2 py-0.5 font-mono text-[10px] text-muted ring-1 ring-line">
+                {roleDefaults.gender} · {roleDefaults.age}
+              </span>
+            </>
+          )}
           <span className={cn(
             'flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold',
             format === 'open-call' ? 'border-link/20 bg-link/10 text-link'
@@ -355,7 +378,8 @@ export function CastingSearch() {
       <AnimatePresence>
         {confirmOpen && (
           <LetItCastConfirmModal
-            roleName={role?.name ?? ''}
+            roleName={allContestants ? '' : (role?.name ?? '')}
+            slotsCount={allContestants ? slotsCount : 0}
             count={resultCount}
             onClose={() => setConfirmOpen(false)}
             onConfirm={handleConfirmCast}
@@ -370,11 +394,13 @@ export function CastingSearch() {
 
 function LetItCastConfirmModal({
   roleName,
+  slotsCount = 0,
   count,
   onClose,
   onConfirm,
 }: {
   roleName: string
+  slotsCount?: number
   count: number
   onClose: () => void
   onConfirm: () => void
@@ -401,8 +427,12 @@ function LetItCastConfirmModal({
             <Zap className="h-6 w-6 text-gold" />
           </span>
           <p className="text-sm leading-relaxed text-ink">
-            You are about to send the role <span className="font-bold">"{roleName}"</span> to{' '}
-            <span className="font-bold">{count.toLocaleString()}</span> Talents. Confirm this casting call?
+            {roleName ? (
+              <>You are about to send the role <span className="font-bold">"{roleName}"</span> to{' '}</>
+            ) : (
+              <>You are about to apply this Matching Profile to all <span className="font-bold">{slotsCount} contestants</span> and send it to{' '}</>
+            )}
+            <span className="font-bold">{count.toLocaleString()}</span> talents. Confirm?
           </p>
         </div>
         <div className="flex items-center gap-2 border-t border-line px-5 py-4">
