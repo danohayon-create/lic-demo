@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft,
@@ -171,9 +171,29 @@ type VideoBrief = { name: string; url: string }
 
 export function NewCasting() {
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToast()
-  const [castingFormat, setCastingFormat] = useState<'scripted' | 'non_scripted' | null>(null)
-  const [step, setStep] = useState(1)
+
+  // location.state is set by CastingSearch when returning from match/confirm
+  // It takes priority over sessionStorage so the right step is always restored
+  const locState = (location.state ?? {}) as {
+    step?: number
+    format?: 'scripted' | 'non_scripted'
+    allApplied?: boolean
+  }
+
+  const [castingFormat, setCastingFormat] = useState<'scripted' | 'non_scripted' | null>(() => {
+    if (locState.format) return locState.format
+    const stored = sessionStorage.getItem('lic-ns-wizard')
+    if (!stored) return null
+    try { return (JSON.parse(stored).format as 'scripted' | 'non_scripted') ?? null } catch { return null }
+  })
+  const [step, setStep] = useState<number>(() => {
+    if (locState.step) return locState.step
+    const stored = sessionStorage.getItem('lic-ns-wizard')
+    if (!stored) return 1
+    try { return JSON.parse(stored).step ?? 1 } catch { return 1 }
+  })
 
   // Shared state across steps
   const [documents, setDocuments] = useState<UploadedDoc[]>([])
@@ -188,21 +208,18 @@ export function NewCasting() {
   const [selfTapeDocs, setSelfTapeDocs] = useState<UploadedDoc[]>([])
   const [selfTapeVideo, setSelfTapeVideo] = useState<VideoBrief | null>(null)
   const [nsCompensation, setNsCompensation] = useState<CompensationData | null>(null)
-  const [nsAllApplied, setNsAllApplied] = useState(false)
-
-  // Restore wizard state when returning from CastingSearch (non-scripted flow)
-  useEffect(() => {
+  const [nsAllApplied] = useState<boolean>(() => {
+    if (locState.allApplied) return true
     const stored = sessionStorage.getItem('lic-ns-wizard')
-    if (!stored) return
+    if (!stored) return false
     try {
-      const { format: savedFmt, step: savedStep, allApplied: savedAllApplied } = JSON.parse(stored)
-      if (savedFmt === 'non_scripted' && savedStep === 6) {
-        setCastingFormat('non_scripted')
-        setStep(6)
-        const matchedAll = savedAllApplied || sessionStorage.getItem('lic-ns-allMatched') === 'true'
-        if (matchedAll) setNsAllApplied(true)
-      }
-    } catch {}
+      const data = JSON.parse(stored)
+      return data.allApplied === true || sessionStorage.getItem('lic-ns-allMatched') === 'true'
+    } catch { return false }
+  })
+
+  // Clear wizard restore keys after lazy initializers have already read them
+  useEffect(() => {
     sessionStorage.removeItem('lic-ns-wizard')
     sessionStorage.removeItem('lic-ns-allMatched')
   }, [])

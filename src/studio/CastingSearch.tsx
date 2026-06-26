@@ -193,14 +193,17 @@ export function CastingSearch() {
 
   const handleConfirmCast = () => {
     if (allContestants) {
-      sessionStorage.setItem('lic-ns-allMatched', 'true')
       setConfirmOpen(false)
       toast(`Matching Profile applied to all ${slotsCount} contestants — ${resultCount.toLocaleString()} talents matched`)
-      navigate('/studio/new-casting')
+      navigate('/studio/new-casting', {
+        state: { step: 6, format: 'non_scripted', allApplied: true },
+      })
     } else if (returnToNs) {
       setConfirmOpen(false)
       toast(`Matching Profile updated — ${resultCount.toLocaleString()} talents matched`)
-      navigate('/studio/new-casting')
+      navigate('/studio/new-casting', {
+        state: { step: 6, format: 'non_scripted', allApplied: true },
+      })
     } else {
       setRoleCastingStatus(project.id, roleId, 'ongoing')
       setConfirmOpen(false)

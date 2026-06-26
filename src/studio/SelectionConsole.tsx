@@ -649,7 +649,6 @@ export function SelectionConsole() {
           onToggleSelect={toggleSelected}
           onSelectAll={selectMany}
           onOpenReview={(c) => navigate(`/studio/review?p=${projectId}&role=${c.roleId}&candidate=${c.id}`)}
-          onWatch={(c) => setWatchQueue([c])}
           onWatchAll={(list) => setWatchQueue(list)}
           compareMode={compareMode}
           compareIds={compareIds}
@@ -1265,7 +1264,6 @@ function ListView({
   onToggleSelect,
   onSelectAll,
   onOpenReview,
-  onWatch,
   onWatchAll,
   compareMode = false,
   compareIds = new Set<string>(),
@@ -1280,7 +1278,6 @@ function ListView({
   onToggleSelect: (id: string) => void
   onSelectAll: (ids: string[]) => void
   onOpenReview: (c: Candidate) => void
-  onWatch: (c: Candidate) => void
   onWatchAll: (list: Candidate[]) => void
   compareMode?: boolean
   compareIds?: Set<string>
@@ -1389,10 +1386,10 @@ function ListView({
               <p className="truncate text-[11px] text-muted">{c.age} y/o · {c.city}</p>
             </div>
 
-            {/* watch */}
+            {/* watch — navigates to full review */}
             <button
-              onClick={(e) => { e.stopPropagation(); onWatch(c) }}
-              title="Watch"
+              onClick={(e) => { e.stopPropagation(); onOpenReview(c) }}
+              title="Review"
               className="flex h-10 w-10 items-center justify-center justify-self-center rounded-full bg-[#E62117] text-white shadow-sm transition-colors hover:bg-signal-good"
             >
               <Play className="ml-0.5 h-4 w-4 fill-current" />
