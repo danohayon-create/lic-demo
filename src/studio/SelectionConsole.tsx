@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
+  ArrowUpDown,
   Bookmark,
   Check,
   CheckCheck,
@@ -13,6 +14,7 @@ import {
   Gauge,
   Grid2x2,
   HelpCircle,
+  Info,
   LayoutGrid,
   List,
   Lock,
@@ -187,6 +189,17 @@ export function SelectionConsole() {
   // Feature 1: AI Priority sort
   const [aiSort, setAiSort] = useState(false)
 
+  // List column sort (score / status)
+  const [listSort, setListSort] = useState<{ col: 'score' | 'status'; dir: 'asc' | 'desc' } | null>(null)
+
+  const toggleListSort = (col: 'score' | 'status') => {
+    setListSort((cur) => {
+      if (cur?.col !== col) return { col, dir: 'desc' }
+      if (cur.dir === 'desc') return { col, dir: 'asc' }
+      return null
+    })
+  }
+
   // Feature 3: Compare mode
   const [compareMode, setCompareMode] = useState(false)
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
@@ -196,13 +209,23 @@ export function SelectionConsole() {
   }
 
   const sortedCandidates = useMemo(() => {
-    if (!aiSort) return filteredCandidates
-    return [...filteredCandidates].sort((a, b) => {
-      const wDiff = (STATUS_WEIGHT[b.status] ?? 0) - (STATUS_WEIGHT[a.status] ?? 0)
-      if (wDiff !== 0) return wDiff
-      return candidateScore(b) - candidateScore(a)
-    })
-  }, [filteredCandidates, aiSort])
+    let base = filteredCandidates
+    if (aiSort) {
+      base = [...base].sort((a, b) => {
+        const wDiff = (STATUS_WEIGHT[b.status] ?? 0) - (STATUS_WEIGHT[a.status] ?? 0)
+        if (wDiff !== 0) return wDiff
+        return candidateScore(b) - candidateScore(a)
+      })
+    }
+    if (listSort) {
+      base = [...base].sort((a, b) => {
+        const mul = listSort.dir === 'desc' ? -1 : 1
+        if (listSort.col === 'score') return mul * (candidateScore(a) - candidateScore(b))
+        return mul * ((STATUS_WEIGHT[a.status] ?? 0) - (STATUS_WEIGHT[b.status] ?? 0))
+      })
+    }
+    return base
+  }, [filteredCandidates, aiSort, listSort])
 
   const toggleCompareSelect = (id: string) => {
     setCompareIds((cur) => {
@@ -552,6 +575,8 @@ export function SelectionConsole() {
           compareMode={compareMode}
           compareIds={compareIds}
           onToggleCompare={toggleCompareSelect}
+          listSort={listSort}
+          onToggleListSort={toggleListSort}
         />
       )}
 
@@ -1035,6 +1060,61 @@ function ViewTab({
   )
 }
 
+/* ── List view helpers ────────────────────────────────────────────────────── */
+
+function ListInfoTooltip({ text }: { text: string }) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <span className="relative inline-flex">
+      <button
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        className="flex h-4 w-4 items-center justify-center text-muted/50 hover:text-muted"
+        aria-label="More info"
+      >
+        <Info className="h-3 w-3" />
+      </button>
+      {visible && (
+        <span className="absolute bottom-full left-1/2 z-50 mb-1.5 w-56 -translate-x-1/2 rounded-btn bg-ink px-3 py-2 text-[11px] leading-relaxed text-white shadow-lg">
+          {text}
+          <span className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-4 border-t-4 border-x-transparent border-t-ink" />
+        </span>
+      )}
+    </span>
+  )
+}
+
+function SortButton({
+  col,
+  listSort,
+  onToggle,
+}: {
+  col: 'score' | 'status'
+  listSort: { col: 'score' | 'status'; dir: 'asc' | 'desc' } | null
+  onToggle?: (col: 'score' | 'status') => void
+}) {
+  const active = listSort?.col === col
+  const dir = active ? listSort!.dir : null
+  return (
+    <button
+      onClick={() => onToggle?.(col)}
+      title={active ? (dir === 'desc' ? 'Sorted high → low (click for low → high)' : 'Sorted low → high (click to reset)') : 'Sort by this column'}
+      className={cn(
+        'flex h-4 w-4 items-center justify-center rounded transition-colors',
+        active ? 'text-link' : 'text-muted/50 hover:text-muted',
+      )}
+    >
+      {active && dir === 'desc' ? (
+        <span className="text-[10px] font-bold leading-none">↓</span>
+      ) : active && dir === 'asc' ? (
+        <span className="text-[10px] font-bold leading-none">↑</span>
+      ) : (
+        <ArrowUpDown className="h-3 w-3" />
+      )}
+    </button>
+  )
+}
+
 /* ── List view ────────────────────────────────────────────────────────────── */
 
 function ListView({
@@ -1050,6 +1130,8 @@ function ListView({
   compareMode = false,
   compareIds = new Set<string>(),
   onToggleCompare,
+  listSort,
+  onToggleListSort,
 }: {
   candidates: Candidate[]
   rolesById: Record<string, Role>
@@ -1063,6 +1145,8 @@ function ListView({
   compareMode?: boolean
   compareIds?: Set<string>
   onToggleCompare?: (id: string) => void
+  listSort?: { col: 'score' | 'status'; dir: 'asc' | 'desc' } | null
+  onToggleListSort?: (col: 'score' | 'status') => void
 }) {
   if (candidates.length === 0) {
     return (
@@ -1098,8 +1182,15 @@ function ListView({
         <span className="text-center text-[11px] font-bold uppercase tracking-wide text-muted">Watch</span>
         <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Team evaluation</span>
         <span />
-        <span className="text-center text-[11px] font-bold uppercase tracking-wide text-muted">Performance Score</span>
-        <span className="text-right text-[11px] font-bold uppercase tracking-wide text-muted">Status</span>
+        <span className="flex items-center justify-center gap-1">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Performance Score</span>
+          <ListInfoTooltip text="Weighted average of team votes: Good ×2 + Maybe ×1 − No go ×1, divided by max possible score. Updated in real time as your team rates." />
+          <SortButton col="score" listSort={listSort ?? null} onToggle={onToggleListSort} />
+        </span>
+        <span className="flex items-center justify-end gap-1">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Status</span>
+          <SortButton col="status" listSort={listSort ?? null} onToggle={onToggleListSort} />
+        </span>
       </div>
 
       {candidates.map((c, i) => {

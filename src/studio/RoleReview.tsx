@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, X, Check, HelpCircle, Pin, PhoneCall,
-  LayoutGrid, Plus, Send, Star, Sparkles, History, TrendingUp, Pencil,
+  LayoutGrid, Plus, Send, Star, Sparkles, History, TrendingUp, Pencil, Info,
 } from 'lucide-react'
 import { Card, Avatar, Button, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
@@ -155,6 +155,32 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
   )
 }
 
+/* ── Info tooltip ───────────────────────────────────────────────────────────── */
+
+function InfoTooltip({ text }: { text: string }) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <span className="relative inline-flex">
+      <button
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onFocus={() => setVisible(true)}
+        onBlur={() => setVisible(false)}
+        className="flex h-4 w-4 items-center justify-center rounded-full text-muted/60 hover:text-muted"
+        aria-label="More info"
+      >
+        <Info className="h-3 w-3" />
+      </button>
+      {visible && (
+        <span className="absolute bottom-full left-1/2 z-50 mb-1.5 w-56 -translate-x-1/2 rounded-btn bg-ink px-3 py-2 text-[11px] leading-relaxed text-white shadow-lg">
+          {text}
+          <span className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-4 border-t-4 border-x-transparent border-t-ink" />
+        </span>
+      )}
+    </span>
+  )
+}
+
 /* ── Let it Cast Intelligence (full-width) ─────────────────────────────────── */
 
 function LICIntelligenceCard({ candidate, totalCandidates }: { candidate: Candidate; totalCandidates: number }) {
@@ -186,8 +212,11 @@ function LICIntelligenceCard({ candidate, totalCandidates }: { candidate: Candid
         {/* predicted rank */}
         <div className="flex items-center gap-3 rounded-btn bg-link/5 px-3 py-2.5">
           <TrendingUp className="h-5 w-5 shrink-0 text-link" />
-          <div>
-            <p className="text-xs text-muted">Predicted ranking</p>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <p className="text-xs text-muted">Predicted ranking</p>
+              <InfoTooltip text="Estimated position of this candidate among all submissions for this role, based on team ratings and AI scene analysis scores. Updated in real time as your team votes." />
+            </div>
             <p className="text-sm font-bold text-ink">
               Top {topPct}% · #{rank} of {totalCandidates}
             </p>
@@ -206,9 +235,12 @@ function LICIntelligenceCard({ candidate, totalCandidates }: { candidate: Candid
           </div>
         </div>
 
-        {/* similar past profiles */}
+        {/* similar talent */}
         <div>
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-label text-muted">Similar past profiles</p>
+          <div className="mb-1.5 flex items-center gap-1">
+            <p className="text-[11px] font-semibold uppercase tracking-label text-muted">Similar Talent</p>
+            <InfoTooltip text="Candidates from past seasons whose scene analysis scores and demographic profile closely match this candidate. A strong similarity to past successful profiles is a positive signal." />
+          </div>
           <div className="flex flex-col gap-1">
             {[
               { name: 'Emma K.', note: 'S3 finalist · Booked lead' },
