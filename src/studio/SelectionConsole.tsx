@@ -1702,10 +1702,11 @@ function PairwiseModal({
   const toast = useToast()
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-ink/70 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-ink/70 p-6" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex w-full max-w-3xl flex-col gap-4 rounded-card bg-card p-6 shadow-card-hover"
+        className="flex w-full max-w-4xl flex-col gap-4 rounded-card bg-card p-6 shadow-card-hover"
+        style={{ maxHeight: '90vh', overflowY: 'auto' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1719,18 +1720,19 @@ function PairwiseModal({
         </div>
 
         {/* Side by side */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-5">
           {[
             { candidate: candidateA, values: SCENE_VALUES_A, label: 'A' },
             { candidate: candidateB, values: SCENE_VALUES_B, label: 'B' },
           ].map(({ candidate, values, label }) => (
             <div key={candidate.id} className="flex flex-col gap-3 rounded-btn border border-line p-4">
+              {/* Identity */}
               <div className="flex items-center gap-3">
                 <div className="relative shrink-0">
                   {candidate.avatar ? (
-                    <img src={asset(candidate.avatar)} alt={candidate.name} className="h-16 w-16 rounded-full object-cover ring-2 ring-purple-400" />
+                    <img src={asset(candidate.avatar)} alt={candidate.name} className="h-14 w-14 rounded-full object-cover ring-2 ring-purple-400" />
                   ) : (
-                    <Avatar name={candidate.name} size="xl" />
+                    <Avatar name={candidate.name} size="lg" />
                   )}
                   <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-purple-500 text-[10px] font-bold text-white">
                     {label}
@@ -1742,21 +1744,37 @@ function PairwiseModal({
                   <p className="text-sm font-bold text-link">{candidateScore(candidate)}</p>
                 </div>
               </div>
-              <div>
-                <Tag tone={candidate.status === 'cast' || candidate.status === 'offer' ? 'good' : candidate.status === 'new' ? 'neutral' : 'link'}>
-                  {BOARD_COLUMN_LABELS[candidate.status]}
-                </Tag>
+
+              {/* Status */}
+              <Tag tone={candidate.status === 'cast' || candidate.status === 'offer' ? 'good' : candidate.status === 'new' ? 'neutral' : 'link'}>
+                {BOARD_COLUMN_LABELS[candidate.status]}
+              </Tag>
+
+              {/* Compact video player */}
+              <div className="overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '16/9' }}>
+                {candidate.video ? (
+                  <video
+                    src={asset(candidate.video)}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <Play className="h-8 w-8 text-white/30" />
+                  </div>
+                )}
               </div>
+
+              {/* Scene analysis */}
               <div className="flex flex-col gap-1.5">
                 <p className="text-[11px] font-semibold uppercase tracking-label text-muted">Scene analysis</p>
-                {SCENE_LABELS.map((label, i) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <span className="w-28 truncate text-[11px] text-muted">{label}</span>
+                {SCENE_LABELS.map((lbl, i) => (
+                  <div key={lbl} className="flex items-center gap-2">
+                    <span className="w-28 truncate text-[11px] text-muted">{lbl}</span>
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
-                      <div
-                        className="h-full rounded-full bg-purple-400 transition-all"
-                        style={{ width: `${values[i]}%` }}
-                      />
+                      <div className="h-full rounded-full bg-purple-400 transition-all" style={{ width: `${values[i]}%` }} />
                     </div>
                     <span className="w-6 text-right text-[11px] font-semibold text-ink">{values[i]}</span>
                   </div>
@@ -1766,19 +1784,13 @@ function PairwiseModal({
           ))}
         </div>
 
-        {/* Footer buttons */}
+        {/* Footer */}
         <div className="flex items-center justify-center gap-3 border-t border-line pt-3">
-          <Button
-            variant="secondary"
-            onClick={() => { toast('Preference saved'); onClose() }}
-          >
-            Select A
+          <Button variant="secondary" onClick={() => { toast(`Preference saved: ${candidateA.name}`); onClose() }}>
+            Select A — {candidateA.name.split(' ')[0]}
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => { toast('Preference saved'); onClose() }}
-          >
-            Select B
+          <Button variant="secondary" onClick={() => { toast(`Preference saved: ${candidateB.name}`); onClose() }}>
+            Select B — {candidateB.name.split(' ')[0]}
           </Button>
           <Button variant="primary" onClick={onClose} icon={<X className="h-3.5 w-3.5" />}>
             Close

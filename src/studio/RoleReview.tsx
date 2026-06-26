@@ -137,7 +137,7 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
         </div>
       </Card>
 
-      {/* ── Let it Cast Intelligence — full width, above player ── */}
+      {/* Let it Cast Intelligence — full width, above player */}
       <LICIntelligenceCard candidate={candidate} totalCandidates={candidates.length} />
 
       {/* player + decision */}
@@ -147,7 +147,6 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
           <Player key={candidate.id} src={asset(candidate.video)} />
           <Transcript />
           <CastingHistoryCard />
-          <DirectFeedbackCard key={`feedback-${candidate.id}`} />
         </div>
         {/* right column */}
         <RoleDecisionPanel key={candidate.id} candidate={candidate} reviewed={reviewed} />
@@ -170,21 +169,19 @@ function LICIntelligenceCard({ candidate, totalCandidates }: { candidate: Candid
     : ['Low score', 'Needs more data']
 
   return (
-    <Card className="flex flex-col gap-4">
-      {/* header */}
-      <div className="flex items-start gap-2">
-        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-link" />
-        <div>
-          <span className="tech-label text-link">Let it Cast Intelligence</span>
-          <p className="mt-0.5 text-xs text-muted leading-relaxed">
-            Ranking combines team ratings, AI scene analysis, and historical casting patterns.<br />
-            Each candidate is benchmarked against all {totalCandidates} submissions for this role.<br />
-            The model continuously improves as your team rates more auditions.
-          </p>
-        </div>
+    <Card className="flex flex-col gap-3">
+      {/* header — full width */}
+      <div className="flex items-center gap-2">
+        <Sparkles className="h-4 w-4 shrink-0 text-link" />
+        <span className="tech-label text-link">Let it Cast Intelligence</span>
       </div>
+      <p className="text-xs text-muted leading-relaxed">
+        Ranking combines team ratings, AI scene analysis, and historical casting patterns.
+        Each candidate is benchmarked against all {totalCandidates} submissions for this role.
+        The model improves continuously as your team rates more auditions.
+      </p>
 
-      {/* content — 3 columns on wide screens */}
+      {/* content — 3 columns */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {/* predicted rank */}
         <div className="flex items-center gap-3 rounded-btn bg-link/5 px-3 py-2.5">
@@ -264,41 +261,35 @@ function CastingHistoryCard() {
   )
 }
 
-/* ── Direct feedback (left column) ─────────────────────────────────────────── */
+/* ── Direct feedback inline (used inside RoleDecisionPanel) ─────────────────── */
 
-function DirectFeedbackCard() {
+function DirectFeedbackInline() {
   const toast = useToast()
   const [note, setNote] = useState('')
   const [sent, setSent] = useState(false)
-
+  if (sent) {
+    return (
+      <p className="flex items-center gap-1.5 text-sm font-medium text-signal-good">
+        <Check className="h-4 w-4" /> Feedback sent.
+      </p>
+    )
+  }
   return (
-    <Card className="flex flex-col gap-3">
-      <div>
-        <span className="tech-label">Direct feedback to actor</span>
-        <p className="text-xs text-muted">Sent privately to the actor</p>
-      </div>
-      {sent ? (
-        <p className="flex items-center gap-1.5 text-sm font-medium text-signal-good">
-          <Check className="h-4 w-4" /> Feedback sent.
-        </p>
-      ) : (
-        <div className="flex items-center gap-2">
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Write a note…"
-            className="h-10 flex-1 rounded-btn border border-line bg-paper px-3 text-sm text-ink focus:border-ink/20 focus:outline-none focus:ring-2 focus:ring-ink/10"
-          />
-          <button
-            onClick={() => { if (!note.trim()) return; setSent(true); toast('Feedback sent to actor') }}
-            className="flex h-10 w-10 items-center justify-center rounded-btn bg-ink text-white hover:bg-ink/90 disabled:opacity-40"
-            disabled={!note.trim()}
-          >
-            <Send className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-    </Card>
+    <div className="flex items-center gap-2">
+      <input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Write a note…"
+        className="h-10 flex-1 rounded-btn border border-line bg-paper px-3 text-sm text-ink focus:border-ink/20 focus:outline-none focus:ring-2 focus:ring-ink/10"
+      />
+      <button
+        onClick={() => { if (!note.trim()) return; setSent(true); toast('Feedback sent to actor') }}
+        className="flex h-10 w-10 items-center justify-center rounded-btn bg-ink text-white hover:bg-ink/90 disabled:opacity-40"
+        disabled={!note.trim()}
+      >
+        <Send className="h-4 w-4" />
+      </button>
+    </div>
   )
 }
 
@@ -394,6 +385,15 @@ function RoleDecisionPanel({ candidate, reviewed }: { candidate: Candidate; revi
         <span className="text-xs text-muted">
           {teamRatings.length > 0 ? `${teamRatings.length} of 5 teammates have rated` : 'No teammate has rated yet'}
         </span>
+      </Card>
+
+      {/* Direct feedback */}
+      <Card className="flex flex-col gap-3">
+        <div>
+          <span className="tech-label">Direct feedback to actor</span>
+          <p className="text-xs text-muted">Sent privately to the actor</p>
+        </div>
+        <DirectFeedbackInline />
       </Card>
 
       {/* Scene Analysis */}
