@@ -16,6 +16,7 @@ import {
   HelpCircle,
   Plus,
   Send,
+  Pencil,
 } from 'lucide-react'
 import { Card, Button, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
@@ -316,6 +317,8 @@ function DecisionPanel() {
   const [stars, setStars] = useState(Math.round(analysis.averageRating))
   const [note, setNote] = useState('')
   const [sent, setSent] = useState(false)
+  const [editingMetrics, setEditingMetrics] = useState(false)
+  const [metrics, setMetrics] = useState(analysis.metrics.map((m) => ({ ...m })))
 
   const ratingLabel: Record<Signal, string> = {
     no: 'No go',
@@ -398,22 +401,48 @@ function DecisionPanel() {
         <span className="text-xs text-muted">{analysis.ratedSummary}</span>
       </Card>
 
-      {/* AI scene analysis */}
+      {/* Scene analysis */}
       <Card className="flex flex-col gap-3">
-        <div>
-          <span className="tech-label">AI scene analysis</span>
-          <p className="text-xs text-muted">Auto-generated from the take</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <span className="tech-label">Scene Analysis</span>
+            <p className="text-xs text-muted">
+              {editingMetrics ? 'Adjust the scores below' : 'AI-proposed · you can override'}
+            </p>
+          </div>
+          <button
+            onClick={() => setEditingMetrics((v) => !v)}
+            title={editingMetrics ? 'Done editing' : 'Edit scores'}
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-line text-muted transition-colors hover:border-ink/30 hover:text-ink"
+          >
+            {editingMetrics ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+          </button>
         </div>
         <ul className="flex flex-col gap-3">
-          {analysis.metrics.map((m) => (
+          {metrics.map((m, i) => (
             <li key={m.label} className="flex flex-col gap-1">
               <div className="flex justify-between text-sm">
                 <span className="text-ink">{m.label}</span>
                 <span className="font-semibold text-ink">{m.value}</span>
               </div>
-              <span className="h-1.5 w-full overflow-hidden rounded-full bg-line">
-                <span className="block h-full rounded-full bg-ink/70" style={{ width: `${m.value}%` }} />
-              </span>
+              {editingMetrics ? (
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={m.value}
+                  onChange={(e) => {
+                    const next = [...metrics]
+                    next[i] = { ...next[i], value: Number(e.target.value) }
+                    setMetrics(next)
+                  }}
+                  className="h-1.5 w-full cursor-pointer accent-ink"
+                />
+              ) : (
+                <span className="h-1.5 w-full overflow-hidden rounded-full bg-line">
+                  <span className="block h-full rounded-full bg-ink/70 transition-all duration-300" style={{ width: `${m.value}%` }} />
+                </span>
+              )}
             </li>
           ))}
         </ul>
