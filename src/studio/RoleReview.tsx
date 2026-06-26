@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, Check, HelpCircle, Pin, PhoneCall, LayoutGrid, Plus, Send, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Check, HelpCircle, Pin, PhoneCall, LayoutGrid, Plus, Send, Star, Sparkles, History, TrendingUp } from 'lucide-react'
 import { Card, Avatar, Button, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import { cn } from '@/lib/cn'
@@ -185,6 +185,81 @@ function RoleDecisionPanel({ candidate, reviewed }: { candidate: Candidate; revi
 
   return (
     <div className="flex flex-col gap-4">
+
+      {/* AI Insight */}
+      <Card className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-3.5 w-3.5 text-link" />
+          <span className="tech-label">AI Insight</span>
+        </div>
+        <div className="flex items-center justify-between rounded-btn bg-link/5 px-3 py-2.5">
+          <div>
+            <p className="text-xs text-muted">Predicted ranking</p>
+            <p className="text-sm font-bold text-ink">Top 8% · #{Math.max(1, Math.round(candidateScore(candidate) / 2))} of {candidate.good + candidate.maybe + candidate.no + 42}</p>
+          </div>
+          <TrendingUp className="h-5 w-5 text-link" />
+        </div>
+        <div>
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-label text-muted">Why surfaced</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(candidateScore(candidate) >= 75
+              ? ['High watchability', 'Strong charisma', 'Rare profile']
+              : candidateScore(candidate) >= 50
+              ? ['Potential match', 'Needs review', 'Mid-range profile']
+              : ['Low score', 'Needs more data']
+            ).map((tag) => (
+              <span key={tag} className="rounded-full bg-link/8 px-2.5 py-1 text-xs font-medium text-link">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="border-t border-line pt-2">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-label text-muted">Similar past profiles</p>
+          <div className="flex flex-col gap-1">
+            {[
+              { name: 'Emma K.', note: 'Season 3 finalist · Booked lead' },
+              { name: 'Sarah M.', note: 'Season 2 · Callback · High engagement' },
+            ].map((p) => (
+              <div key={p.name} className="flex items-center gap-2">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-line text-[10px] font-bold text-muted">
+                  {p.name[0]}
+                </span>
+                <div className="min-w-0">
+                  <span className="text-xs font-semibold text-ink">{p.name}</span>
+                  <span className="ml-1 text-[11px] text-muted">· {p.note}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* Casting history */}
+      <Card className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <History className="h-3.5 w-3.5 text-muted" />
+          <span className="tech-label">Casting history</span>
+        </div>
+        <ul className="flex flex-col gap-2">
+          {[
+            { show: 'Survivor AU', season: 'S12', role: 'Contestant', result: 'Callback', color: 'text-signal-good bg-signal-good-bg' },
+            { show: 'MasterChef AU', season: 'S15', role: 'Home Cook', result: 'Shortlisted', color: 'text-[#8A6D00] bg-signal-maybe/10' },
+            { show: 'The Block', season: 'S19', role: 'Contestant', result: 'No go', color: 'text-signal-no bg-signal-no/8' },
+          ].map((entry) => (
+            <li key={entry.show + entry.season} className="flex items-center justify-between gap-2 rounded-btn bg-paper px-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold text-ink">{entry.show} <span className="text-muted">· {entry.season}</span></p>
+                <p className="truncate text-[11px] text-muted">{entry.role}</p>
+              </div>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${entry.color}`}>
+                {entry.result}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
       {/* your rating */}
       <Card className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
