@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -19,10 +19,12 @@ import {
   Sparkles,
   X,
   Play,
+  Pause,
   Pencil,
   Plus,
   Search,
   DollarSign,
+  Circle,
 } from 'lucide-react'
 import { Card, Button, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
@@ -468,6 +470,7 @@ function StepUpload({
   const videoInputRef = useRef<HTMLInputElement>(null)
   const [draggingDoc, setDraggingDoc] = useState(false)
   const [draggingVideo, setDraggingVideo] = useState(false)
+  const [showVideoRecord, setShowVideoRecord] = useState(false)
 
   const formatSize = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 
@@ -570,18 +573,32 @@ function StepUpload({
           onDragOver={(e) => { e.preventDefault(); setDraggingVideo(true) }}
           onDragLeave={() => setDraggingVideo(false)}
           onDrop={(e) => { e.preventDefault(); setDraggingVideo(false); addVideos(e.dataTransfer.files) }}
-          onClick={() => videoInputRef.current?.click()}
           className={cn(
-            'flex cursor-pointer flex-col items-center gap-2 rounded-card border-2 border-dashed px-6 py-8 transition-colors',
-            draggingVideo ? 'border-link bg-link/5' : 'border-line bg-paper hover:border-ink/30',
+            'flex flex-col items-center gap-3 rounded-card border-2 border-dashed px-6 py-6 transition-colors',
+            draggingVideo ? 'border-link bg-link/5' : 'border-line bg-paper',
           )}
         >
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-card ring-1 ring-line">
             <Video className="h-5 w-5 text-muted" />
           </span>
-          <div className="text-center">
-            <p className="text-sm font-semibold text-ink">Drop your video brief here</p>
-            <p className="text-xs text-muted">or click to browse</p>
+          <p className="text-sm font-semibold text-ink">Drop your video brief here</p>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Upload className="h-4 w-4" />}
+              onClick={() => videoInputRef.current?.click()}
+            >
+              Upload file
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<Circle className="h-4 w-4 text-signal-no" />}
+              onClick={() => setShowVideoRecord(true)}
+            >
+              Record brief
+            </Button>
           </div>
           <input
             ref={videoInputRef}
@@ -612,6 +629,13 @@ function StepUpload({
           </div>
         )}
       </Card>
+
+      {showVideoRecord && (
+        <VideoRecordModal
+          onSave={(name, url) => { onVideoBriefs([...videoBriefs, { name, url }]); setShowVideoRecord(false) }}
+          onClose={() => setShowVideoRecord(false)}
+        />
+      )}
 
       <button onClick={useSample} className="text-center text-sm font-medium text-link hover:underline">
         Use our sample script &amp; brief to explore the feature →
@@ -1306,6 +1330,7 @@ function StepCandidates({
   const videoInputRef = useRef<HTMLInputElement>(null)
   const [draggingDoc, setDraggingDoc] = useState(false)
   const [draggingVideo, setDraggingVideo] = useState(false)
+  const [showVideoRecord, setShowVideoRecord] = useState(false)
 
   const formatSize = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 
@@ -1486,17 +1511,33 @@ function StepCandidates({
               onDragOver={(e) => { e.preventDefault(); setDraggingVideo(true) }}
               onDragLeave={() => setDraggingVideo(false)}
               onDrop={(e) => { e.preventDefault(); setDraggingVideo(false); addVideo(e.dataTransfer.files) }}
-              onClick={() => videoInputRef.current?.click()}
               className={cn(
-                'flex cursor-pointer flex-col items-center gap-2 rounded-card border-2 border-dashed px-6 py-6 transition-colors',
-                draggingVideo ? 'border-link bg-link/5' : 'border-line bg-paper hover:border-ink/30',
+                'flex flex-col items-center gap-3 rounded-card border-2 border-dashed px-6 py-6 transition-colors',
+                draggingVideo ? 'border-link bg-link/5' : 'border-line bg-paper',
               )}
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-card ring-1 ring-line">
                 <Video className="h-4 w-4 text-muted" />
               </span>
               <p className="text-sm font-semibold text-ink">Drop production video here</p>
-              <p className="text-xs text-muted">or click to browse</p>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Upload className="h-4 w-4" />}
+                  onClick={() => videoInputRef.current?.click()}
+                >
+                  Upload file
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Circle className="h-4 w-4 text-signal-no" />}
+                  onClick={() => setShowVideoRecord(true)}
+                >
+                  Record video
+                </Button>
+              </div>
               <input
                 ref={videoInputRef}
                 type="file"
@@ -1509,6 +1550,12 @@ function StepCandidates({
               Use MasterChef S17 sample production video →
             </button>
           </div>
+        )}
+        {showVideoRecord && (
+          <VideoRecordModal
+            onSave={(name, url) => { onSelfTapeVideo({ name, url }); setShowVideoRecord(false) }}
+            onClose={() => setShowVideoRecord(false)}
+          />
         )}
       </Card>
 
@@ -2872,6 +2919,173 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex flex-col gap-1.5">
       <span className="tech-label">{label}</span>
       {children}
+    </div>
+  )
+}
+
+// ── Video Record Modal ────────────────────────────────────────────────────────
+
+function VideoRecordModal({
+  onSave,
+  onClose,
+}: {
+  onSave: (name: string, url: string) => void
+  onClose: () => void
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [phase, setPhase] = useState<'idle' | 'recording' | 'paused'>('idle')
+  const [elapsed, setElapsed] = useState(0)
+  const [cameraError, setCameraError] = useState(false)
+
+  const startStream = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play()
+      }
+    } catch {
+      setCameraError(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    startStream()
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [startStream])
+
+  const startRecording = () => {
+    if (!streamRef.current) return
+    chunksRef.current = []
+    const recorder = new MediaRecorder(streamRef.current)
+    recorderRef.current = recorder
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+    recorder.onstop = () => {
+      const blob = new Blob(chunksRef.current, { type: 'video/webm' })
+      const url = URL.createObjectURL(blob)
+      const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      onSave(`brief_recorded_${ts}.webm`, url)
+    }
+    recorder.start()
+    setPhase('recording')
+    setElapsed(0)
+    timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000)
+  }
+
+  const pauseRecording = () => {
+    recorderRef.current?.pause()
+    setPhase('paused')
+    if (timerRef.current) clearInterval(timerRef.current)
+  }
+
+  const resumeRecording = () => {
+    recorderRef.current?.resume()
+    setPhase('recording')
+    timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000)
+  }
+
+  const stopAndSave = () => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    recorderRef.current?.stop()
+  }
+
+  const fmtTime = (s: number) =>
+    `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg overflow-hidden rounded-card bg-card shadow-card-hover"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <span className="tech-label">Record your video brief</span>
+          <button onClick={onClose} className="text-muted hover:text-ink">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4 p-5">
+          {cameraError ? (
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <Video className="h-10 w-10 text-muted" />
+              <p className="text-sm font-semibold text-ink">Camera not available</p>
+              <p className="text-xs text-muted">
+                Allow camera access in your browser settings and try again.
+              </p>
+              <Button variant="secondary" onClick={onClose}>Close</Button>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-hidden rounded-btn bg-black ring-1 ring-line" style={{ aspectRatio: '16/9' }}>
+                <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-sm text-muted">{fmtTime(elapsed)}</span>
+                {phase === 'recording' && (
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-signal-no">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-signal-no" />
+                    REC
+                  </span>
+                )}
+                {phase === 'paused' && (
+                  <span className="text-xs font-bold text-signal-maybe">PAUSED</span>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                {phase === 'idle' && (
+                  <Button icon={<Circle className="h-4 w-4" />} onClick={startRecording} className="flex-1">
+                    Start recording
+                  </Button>
+                )}
+                {(phase === 'recording' || phase === 'paused') && (
+                  <>
+                    {phase === 'recording' ? (
+                      <Button
+                        variant="secondary"
+                        icon={<Pause className="h-4 w-4" />}
+                        onClick={pauseRecording}
+                        className="flex-1"
+                      >
+                        Pause
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        icon={<Play className="h-4 w-4" />}
+                        onClick={resumeRecording}
+                        className="flex-1"
+                      >
+                        Resume
+                      </Button>
+                    )}
+                    <Button
+                      icon={<Check className="h-4 w-4" />}
+                      onClick={stopAndSave}
+                      className="flex-1"
+                    >
+                      Stop &amp; save
+                    </Button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

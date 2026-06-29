@@ -55,7 +55,14 @@ export function Review() {
   const projectId = searchParams.get('p')
   const roleId = searchParams.get('role')
 
-  if (projectId === 'les-ombres-de-midi' && roleId) {
+  const ROLE_REVIEW_PROJECTS = [
+    'les-ombres-de-midi',
+    'survivor-australia-s14',
+    'masterchef-australia-s17',
+    'masterchef-australia',
+  ]
+
+  if (projectId && ROLE_REVIEW_PROJECTS.includes(projectId) && roleId) {
     return <RoleReview projectId={projectId} roleId={roleId} />
   }
   return <LegacyReview />
@@ -527,8 +534,8 @@ function DecisionPanel() {
       {/* direct feedback */}
       <Card className="flex flex-col gap-3">
         <div>
-          <span className="tech-label">Direct feedback to actor</span>
-          <p className="text-xs text-muted">Sent privately to the actor</p>
+          <span className="tech-label">Direct feedback to talent</span>
+          <p className="text-xs text-muted">Send private feedback to the talent</p>
         </div>
         {sent ? (
           <p className="flex items-center gap-1.5 text-sm font-medium text-signal-good">
@@ -546,7 +553,7 @@ function DecisionPanel() {
               onClick={() => {
                 if (!note.trim()) return
                 setSent(true)
-                toast('Feedback sent to actor')
+                toast('Feedback sent to talent')
               }}
               className="flex h-10 w-10 items-center justify-center rounded-btn bg-ink text-white hover:bg-ink/90 disabled:opacity-40"
               disabled={!note.trim()}
