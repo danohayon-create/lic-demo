@@ -16,7 +16,7 @@ import type { LucideIcon } from 'lucide-react'
 import { Card, Avatar, Button, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import { cn } from '@/lib/cn'
-import { projects, projectsById, team, teamByInitials } from '@/data'
+import { projects, team, teamByInitials } from '@/data'
 import { asset } from '@/lib/asset'
 
 // ── Demo content — a narrative "session" snapshot, independent of the live
