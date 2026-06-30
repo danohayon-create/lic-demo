@@ -232,7 +232,6 @@ export const projects: Project[] = [
     },
     roleIds: [
       'mc17-c01', 'mc17-c02', 'mc17-c03', 'mc17-c04', 'mc17-c05',
-      'mc17-c06', 'mc17-c07', 'mc17-c08', 'mc17-c09', 'mc17-c10',
     ],
     synopsis: 'MasterChef US returns for a seventeenth season, searching across the country for the nation\'s most passionate home cooks. This season features no professional chefs — just extraordinary everyday people with an obsession for food.',
     directorBrief: 'We\'re looking for 10 contestants who represent the full breadth of American food culture. Strong personalities, genuine culinary stories, and the resilience to handle the pressure of competition. Diverse backgrounds, age ranges, and cuisines — that\'s what makes great television.',
@@ -706,16 +705,11 @@ export const roles: Role[] = [
   },
 
   // ── MasterChef Australia — Season 17 ────────────────────────────────────
-  { id: 'mc17-c01', projectId: 'masterchef-australia-s17', name: 'Casting Team 1',  type: 'Contestant', submissions: 2500, shortlist: 12, status: 'Reviewing', deadline: 'Sep 15', pay: '$900/week', location: 'Melbourne', auditionFlow: 'Open Call', castingNotes: 'Passionate home cook with a unique personal story — we need someone who inspires the audience as much as they impress the judges.' },
-  { id: 'mc17-c02', projectId: 'masterchef-australia-s17', name: 'Casting Team 2',  type: 'Contestant', submissions: 2200, shortlist: 10, status: 'Reviewing', deadline: 'Sep 15' },
-  { id: 'mc17-c03', projectId: 'masterchef-australia-s17', name: 'Casting Team 3',  type: 'Contestant', submissions: 2100, shortlist: 8,  status: 'Reviewing', deadline: 'Sep 15' },
-  { id: 'mc17-c04', projectId: 'masterchef-australia-s17', name: 'Casting Team 4',  type: 'Contestant', submissions: 2400, shortlist: 11, status: 'Callbacks', deadline: 'Sep 15' },
-  { id: 'mc17-c05', projectId: 'masterchef-australia-s17', name: 'Casting Team 5',  type: 'Contestant', submissions: 2600, shortlist: 9,  status: 'Callbacks', deadline: 'Sep 15' },
-  { id: 'mc17-c06', projectId: 'masterchef-australia-s17', name: 'Casting Team 6',  type: 'Contestant', submissions: 2300, shortlist: 7,  status: 'Callbacks', deadline: 'Sep 15' },
-  { id: 'mc17-c07', projectId: 'masterchef-australia-s17', name: 'Casting Team 7',  type: 'Contestant', submissions: 2700, shortlist: 5,  status: 'Open',      deadline: 'Sep 15' },
-  { id: 'mc17-c08', projectId: 'masterchef-australia-s17', name: 'Casting Team 8',  type: 'Contestant', submissions: 2900, shortlist: 4,  status: 'Open',      deadline: 'Sep 15' },
-  { id: 'mc17-c09', projectId: 'masterchef-australia-s17', name: 'Casting Team 9',  type: 'Contestant', submissions: 2800, shortlist: 3,  status: 'Open',      deadline: 'Sep 15' },
-  { id: 'mc17-c10', projectId: 'masterchef-australia-s17', name: 'Casting Team 10', type: 'Contestant', submissions: 2500, shortlist: 2,  status: 'Open',      deadline: 'Sep 15' },
+  { id: 'mc17-c01', projectId: 'masterchef-australia-s17', name: 'Casting Team 1', type: 'Contestant', submissions: 5200, shortlist: 14, status: 'Reviewing', deadline: 'Sep 15', pay: '$900/week', location: 'Melbourne', auditionFlow: 'Open Call', castingNotes: 'Passionate home cook with a unique personal story — we need someone who inspires the audience as much as they impress the judges.' },
+  { id: 'mc17-c02', projectId: 'masterchef-australia-s17', name: 'Casting Team 2', type: 'Contestant', submissions: 4800, shortlist: 10, status: 'Reviewing', deadline: 'Sep 15' },
+  { id: 'mc17-c03', projectId: 'masterchef-australia-s17', name: 'Casting Team 3', type: 'Contestant', submissions: 5100, shortlist: 8,  status: 'Callbacks', deadline: 'Sep 15' },
+  { id: 'mc17-c04', projectId: 'masterchef-australia-s17', name: 'Casting Team 4', type: 'Contestant', submissions: 4900, shortlist: 6,  status: 'Callbacks', deadline: 'Sep 15' },
+  { id: 'mc17-c05', projectId: 'masterchef-australia-s17', name: 'Casting Team 5', type: 'Contestant', submissions: 5000, shortlist: 0,  status: 'Open',      deadline: 'Sep 15' },
 ]
 
 export const projectsById = Object.fromEntries(projects.map((p) => [p.id, p]))

@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, X, Check, HelpCircle, Pin, PhoneCall,
-  LayoutGrid, Plus, Send, Star, Sparkles, History, TrendingUp, Info,
+  LayoutGrid, Plus, Send, Star, Sparkles, History, TrendingUp, Info, Play, AtSign,
 } from 'lucide-react'
 import { Card, Avatar, Button, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
@@ -196,6 +196,7 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
           <Player key={candidate.id} src={asset(candidate.video)} />
           <Transcript />
           <CastingHistoryCard />
+          <TeamCommentsCard />
         </div>
         {/* right column */}
         <RoleDecisionPanel
@@ -472,37 +473,244 @@ function LICIntelligenceCard({ totalCandidates, licScore }: { candidate?: Candid
 
 /* ── Casting history (left column) ─────────────────────────────────────────── */
 
+const HISTORY_ENTRIES = [
+  { show: 'MAFS AU',         season: 'S8',  role: 'Participant',   result: 'Cast',        color: 'text-signal-good bg-signal-good-bg', score: 94, video: '/casting-nonscripted/amara-osei.mp4' },
+  { show: "I'm a Celebrity", season: 'S4',  role: 'Celebrity',     result: 'Cast',        color: 'text-signal-good bg-signal-good-bg', score: 91, video: '/casting-nonscripted/grace-osei.mp4' },
+  { show: 'Survivor AU',     season: 'S12', role: 'Contestant',    result: 'Callback',    color: 'text-[#8A6D00] bg-signal-maybe/10',  score: 78, video: '/casting-nonscripted/sophie-tremblay.mp4' },
+  { show: 'The Bachelor AU', season: 'S10', role: 'Contestant',    result: 'Callback',    color: 'text-[#8A6D00] bg-signal-maybe/10',  score: 74, video: '/casting-nonscripted/lily-nakamura.mp4' },
+  { show: 'Big Brother AU',  season: 'S14', role: 'Housemate',     result: 'Shortlisted', color: 'text-[#8A6D00] bg-signal-maybe/10',  score: 62, video: '/casting-nonscripted/nadia-johansson.mp4' },
+  { show: 'MasterChef AU',   season: 'S15', role: 'Home Cook',     result: 'Shortlisted', color: 'text-[#8A6D00] bg-signal-maybe/10',  score: 58, video: '/casting-nonscripted/priya-nair.mp4' },
+  { show: 'The Block',       season: 'S19', role: 'Contestant',    result: 'No go',       color: 'text-signal-no bg-signal-no/8',      score: 41, video: '/casting-nonscripted/angela-santos.mp4' },
+  { show: 'Love Island AU',  season: 'S2',  role: 'Islander',      result: 'No go',       color: 'text-signal-no bg-signal-no/8',      score: 37, video: '/casting-nonscripted/layla-hassan.mp4' },
+]
+
 function CastingHistoryCard() {
-  const entries = [
-    { show: 'MAFS AU',         season: 'S8',  role: 'Participant',   result: 'Cast',        color: 'text-signal-good bg-signal-good-bg' },
-    { show: "I'm a Celebrity", season: 'S4',  role: 'Celebrity',     result: 'Cast',        color: 'text-signal-good bg-signal-good-bg' },
-    { show: 'Survivor AU',     season: 'S12', role: 'Contestant',    result: 'Callback',    color: 'text-[#8A6D00] bg-signal-maybe/10' },
-    { show: 'The Bachelor AU', season: 'S10', role: 'Contestant',    result: 'Callback',    color: 'text-[#8A6D00] bg-signal-maybe/10' },
-    { show: 'Big Brother AU',  season: 'S14', role: 'Housemate',     result: 'Shortlisted', color: 'text-[#8A6D00] bg-signal-maybe/10' },
-    { show: 'MasterChef AU',   season: 'S15', role: 'Home Cook',     result: 'Shortlisted', color: 'text-[#8A6D00] bg-signal-maybe/10' },
-    { show: 'The Block',       season: 'S19', role: 'Contestant',    result: 'No go',       color: 'text-signal-no bg-signal-no/8' },
-    { show: 'Love Island AU',  season: 'S2',  role: 'Islander',      result: 'No go',       color: 'text-signal-no bg-signal-no/8' },
-  ]
+  const [preview, setPreview] = useState<typeof HISTORY_ENTRIES[0] | null>(null)
+
+  return (
+    <>
+      <Card className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <History className="h-3.5 w-3.5 text-muted" />
+          <span className="tech-label">Casting history</span>
+          <span className="ml-auto text-[11px] text-muted">{HISTORY_ENTRIES.length} productions</span>
+        </div>
+        <ul className="flex max-h-64 flex-col gap-1.5 overflow-y-auto pr-1">
+          {HISTORY_ENTRIES.map((entry) => (
+            <li key={entry.show + entry.season} className="flex items-center gap-2 rounded-btn bg-paper px-3 py-2">
+              {/* play button */}
+              <button
+                onClick={() => setPreview(entry)}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink/8 text-ink hover:bg-ink/15 transition-colors"
+                title="Revoir la self-tape"
+              >
+                <Play className="ml-0.5 h-3 w-3" />
+              </button>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-semibold text-ink">{entry.show} <span className="font-normal text-muted">· {entry.season}</span></p>
+                <p className="truncate text-[11px] text-muted">{entry.role}</p>
+              </div>
+              {/* score */}
+              <span className="shrink-0 font-mono text-xs font-bold text-muted">{entry.score}</span>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${entry.color}`}>
+                {entry.result}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      {/* History video mini-player */}
+      {preview && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-ink/70 p-4" onClick={() => setPreview(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="flex w-full max-w-xl flex-col gap-3 rounded-card bg-card p-4 shadow-card-hover">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-ink">{preview.show} · {preview.season}</p>
+                <p className="text-xs text-muted">{preview.role} — Score <span className="font-mono font-bold text-ink">{preview.score}</span></p>
+              </div>
+              <button onClick={() => setPreview(null)} className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-ink/5 hover:text-ink">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <Player src={preview.video} />
+            <span className={`self-start rounded-full px-2.5 py-0.5 text-[11px] font-bold ${preview.color}`}>{preview.result}</span>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+/* ── Team comments (left column) ───────────────────────────────────────────── */
+
+const TEAM_MEMBERS = [
+  { id: 'peter-known', name: 'Peter Known',  initials: 'PK', color: 'bg-[#F59E0B]' },
+  { id: 'eden-tov',    name: 'Eden Tov',     initials: 'ET', color: 'bg-[#6366F1]' },
+  { id: 'julie-cohen', name: 'Julie Cohen',  initials: 'JC', color: 'bg-[#10B981]' },
+  { id: 'lara-khan',   name: 'Lara Khan',    initials: 'LK', color: 'bg-[#EC4899]' },
+  { id: 'sarah-liu',   name: 'Sarah Liu',    initials: 'SL', color: 'bg-[#8B5CF6]' },
+]
+
+type TeamComment = {
+  id: string
+  authorId: string
+  text: string
+  mentions: string[]
+  time: string
+}
+
+const INITIAL_COMMENTS: TeamComment[] = [
+  { id: 'c1', authorId: 'peter-known', text: 'Probably the right actor for the role. Let\'s gather to discuss.', mentions: [], time: '2h ago' },
+  { id: 'c2', authorId: 'eden-tov',    text: 'Agreed. The energy in the first 30s is exactly what we need. @Julie Cohen what do you think?', mentions: ['julie-cohen'], time: '1h ago' },
+  { id: 'c3', authorId: 'julie-cohen', text: 'Really strong presence. I\'d push her straight to callbacks.', mentions: [], time: '45m ago' },
+]
+
+function TeamCommentsCard() {
+  const toast = useToast()
+  const [comments, setComments] = useState<TeamComment[]>(INITIAL_COMMENTS)
+  const [text, setText] = useState('')
+  const [showMentions, setShowMentions] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  const currentUser = TEAM_MEMBERS[0]
+
+  const filteredMembers = TEAM_MEMBERS.filter(
+    (m) => m.id !== currentUser.id && m.name.toLowerCase().includes(mentionQuery.toLowerCase())
+  )
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value
+    setText(val)
+    const atIdx = val.lastIndexOf('@')
+    if (atIdx !== -1 && atIdx === val.length - 1) {
+      setShowMentions(true)
+      setMentionQuery('')
+    } else if (atIdx !== -1 && !val.slice(atIdx + 1).includes(' ')) {
+      setShowMentions(true)
+      setMentionQuery(val.slice(atIdx + 1))
+    } else {
+      setShowMentions(false)
+    }
+  }
+
+  const insertMention = (member: typeof TEAM_MEMBERS[0]) => {
+    const atIdx = text.lastIndexOf('@')
+    const newText = text.slice(0, atIdx) + `@${member.name} `
+    setText(newText)
+    setShowMentions(false)
+    inputRef.current?.focus()
+  }
+
+  const submit = () => {
+    if (!text.trim()) return
+    const mentions = TEAM_MEMBERS
+      .filter((m) => text.includes(`@${m.name}`))
+      .map((m) => m.id)
+    const newComment: TeamComment = {
+      id: `c${Date.now()}`,
+      authorId: currentUser.id,
+      text: text.trim(),
+      mentions,
+      time: 'now',
+    }
+    setComments((c) => [...c, newComment])
+    setText('')
+    setShowMentions(false)
+    if (mentions.length > 0) {
+      const names = mentions.map((id) => TEAM_MEMBERS.find((m) => m.id === id)?.name).join(', ')
+      toast(`Notification envoyée à ${names}`)
+    }
+  }
+
+  const renderText = (t: string) => {
+    const parts = t.split(/(@[A-Za-zÀ-ÿ\s]+?)(?=\s|$)/g)
+    return parts.map((part, i) =>
+      part.startsWith('@') ? (
+        <span key={i} className="font-semibold text-link">{part}</span>
+      ) : (
+        <span key={i}>{part}</span>
+      )
+    )
+  }
+
+  useEffect(() => {
+    // close mention dropdown on outside click
+    const handler = (e: MouseEvent) => {
+      if (inputRef.current && !inputRef.current.contains(e.target as Node)) {
+        setShowMentions(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <History className="h-3.5 w-3.5 text-muted" />
-        <span className="tech-label">Casting history</span>
-        <span className="ml-auto text-[11px] text-muted">{entries.length} productions</span>
+        <AtSign className="h-3.5 w-3.5 text-muted" />
+        <span className="tech-label">Team comments</span>
+        <span className="ml-auto text-[11px] text-muted">{comments.length} comments</span>
       </div>
-      <ul className="flex max-h-52 flex-col gap-1.5 overflow-y-auto pr-1">
-        {entries.map((entry) => (
-          <li key={entry.show + entry.season} className="flex items-center justify-between gap-2 rounded-btn bg-paper px-3 py-2">
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-ink">{entry.show} <span className="text-muted">· {entry.season}</span></p>
-              <p className="truncate text-[11px] text-muted">{entry.role}</p>
+
+      {/* Comment feed */}
+      <div className="flex max-h-64 flex-col gap-3 overflow-y-auto">
+        {comments.map((c) => {
+          const author = TEAM_MEMBERS.find((m) => m.id === c.authorId)!
+          return (
+            <div key={c.id} className="flex gap-2.5">
+              <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${author.color}`}>
+                {author.initials}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xs font-semibold text-ink">{author.name}</span>
+                  <span className="text-[10px] text-muted">{c.time}</span>
+                </div>
+                <p className="text-xs leading-relaxed text-ink/80">{renderText(c.text)}</p>
+              </div>
             </div>
-            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${entry.color}`}>
-              {entry.result}
-            </span>
-          </li>
-        ))}
-      </ul>
+          )
+        })}
+      </div>
+
+      {/* Input */}
+      <div className="relative flex flex-col gap-2">
+        {showMentions && filteredMembers.length > 0 && (
+          <div className="absolute bottom-full mb-1 left-0 z-10 w-full rounded-card border border-line bg-card shadow-card">
+            {filteredMembers.map((m) => (
+              <button
+                key={m.id}
+                onMouseDown={() => insertMention(m)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-paper"
+              >
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white ${m.color}`}>{m.initials}</span>
+                <span className="text-xs font-medium text-ink">{m.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <textarea
+          ref={inputRef}
+          value={text}
+          onChange={handleChange}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
+          rows={2}
+          placeholder="Ajouter un commentaire… Tapez @ pour mentionner un membre"
+          className="w-full resize-none rounded-btn border border-line bg-paper px-3 py-2 text-xs text-ink placeholder:text-muted/60 outline-none focus:border-ink/30 focus:ring-1 focus:ring-ink/10"
+        />
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-muted">↵ Entrée pour envoyer · Shift+↵ saut de ligne · @ pour mentionner</span>
+          <button
+            onClick={submit}
+            disabled={!text.trim()}
+            className="flex h-7 w-7 items-center justify-center rounded-btn bg-ink text-white hover:bg-ink/90 disabled:opacity-30"
+          >
+            <Send className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
     </Card>
   )
 }

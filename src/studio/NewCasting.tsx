@@ -206,6 +206,7 @@ export function NewCasting() {
   const [globalFormat, setGlobalFormat] = useState<AuditionFormat>('open-call')
   const [roleFormats, setRoleFormats] = useState<Record<string, AuditionFormat>>({})
   const [contestantCount, setContestantCount] = useState(10)
+  const [castingTeamCount, setCastingTeamCount] = useState(5)
   const [contestantProfile, setContestantProfile] = useState('')
   const [selfTapeDocs, setSelfTapeDocs] = useState<UploadedDoc[]>([])
   const [selfTapeVideo, setSelfTapeVideo] = useState<VideoBrief | null>(null)
@@ -344,6 +345,8 @@ export function NewCasting() {
             <StepCandidates
               count={contestantCount}
               onCount={setContestantCount}
+              teamCount={castingTeamCount}
+              onTeamCount={setCastingTeamCount}
               profile={contestantProfile}
               onProfile={setContestantProfile}
               selfTapeDocs={selfTapeDocs}
@@ -1310,6 +1313,8 @@ function StepFormatChoice({
 function StepCandidates({
   count,
   onCount,
+  teamCount,
+  onTeamCount,
   profile,
   onProfile,
   selfTapeDocs,
@@ -1321,6 +1326,8 @@ function StepCandidates({
 }: {
   count: number
   onCount: (n: number) => void
+  teamCount: number
+  onTeamCount: (n: number) => void
   profile: string
   onProfile: (s: string) => void
   selfTapeDocs: UploadedDoc[]
@@ -1402,6 +1409,50 @@ function StepCandidates({
           {slots.map((s) => (
             <span key={s} className="rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-muted ring-1 ring-line">
               {s}
+            </span>
+          ))}
+        </div>
+      </Card>
+
+      {/* Casting teams picker */}
+      <Card className="flex flex-col gap-4">
+        <div className="flex items-baseline justify-between">
+          <span className="tech-label">Casting teams</span>
+          <span className="text-xs text-muted">Each team analyses a share of submissions</span>
+        </div>
+        <p className="text-sm text-muted">
+          How many casting teams will review the submissions? Each team receives an equal portion of the applications to evaluate independently.
+        </p>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => onTeamCount(Math.max(1, teamCount - 1))}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink hover:bg-paper"
+          >
+            <span className="text-lg font-bold">−</span>
+          </button>
+          <div className="flex flex-1 flex-col items-center gap-0.5">
+            <span className="text-4xl font-bold tracking-tight text-ink">{teamCount}</span>
+            <span className="text-xs text-muted">casting {teamCount === 1 ? 'team' : 'teams'}</span>
+          </div>
+          <button
+            onClick={() => onTeamCount(Math.min(10, teamCount + 1))}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink hover:bg-paper"
+          >
+            <span className="text-lg font-bold">+</span>
+          </button>
+        </div>
+        <input
+          type="range"
+          min={1}
+          max={10}
+          value={teamCount}
+          onChange={(e) => onTeamCount(Number(e.target.value))}
+          className="w-full accent-ink"
+        />
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: teamCount }, (_, i) => (
+            <span key={i} className="rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-muted ring-1 ring-line">
+              Casting Team {i + 1}
             </span>
           ))}
         </div>
