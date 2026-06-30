@@ -175,23 +175,29 @@ function LegacyReview() {
 
 const SPEEDS = [1, 1.25, 1.5, 0.75]
 
-export function Player({ src }: { src?: string } = {}) {
+export type Chapter = { label: string; start: number; color: string; bg: string }
+
+export const AUDITION_CHAPTERS: Chapter[] = [
+  { label: 'We Are',              start: 0,   color: '#3B82F6', bg: 'bg-[#3B82F6]' },
+  { label: 'Structure Challenge', start: 30,  color: '#F59E0B', bg: 'bg-[#F59E0B]' },
+  { label: 'Improvisation',       start: 75,  color: '#10B981', bg: 'bg-[#10B981]' },
+  { label: 'Wild Card',           start: 135, color: '#EF4444', bg: 'bg-[#EF4444]' },
+]
+
+export function Player({ src, chapters }: { src?: string; chapters?: Chapter[] } = {}) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
   const [time, setTime] = useState(0)
   const [duration, setDuration] = useState(toSeconds(auditionDuration))
   const [speedIdx, setSpeedIdx] = useState(0)
 
+  const activeChapters = chapters ?? []
+
   const toggle = () => {
     const v = videoRef.current
     if (!v) return
-    if (v.paused) {
-      v.play()
-      setPlaying(true)
-    } else {
-      v.pause()
-      setPlaying(false)
-    }
+    if (v.paused) { v.play(); setPlaying(true) }
+    else          { v.pause(); setPlaying(false) }
   }
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -202,6 +208,14 @@ export function Player({ src }: { src?: string } = {}) {
     v.currentTime = ratio * duration
   }
 
+  const seekTo = (sec: number) => {
+    const v = videoRef.current
+    if (!v) return
+    v.currentTime = Math.min(sec, duration)
+    v.play()
+    setPlaying(true)
+  }
+
   const cycleSpeed = () => {
     const next = (speedIdx + 1) % SPEEDS.length
     setSpeedIdx(next)
@@ -209,6 +223,9 @@ export function Player({ src }: { src?: string } = {}) {
   }
 
   const progress = duration ? (time / duration) * 100 : 0
+
+  // Determine current chapter
+  const currentChapterIdx = activeChapters.reduce((acc, ch, i) => (time >= ch.start ? i : acc), -1)
 
   return (
     <Card flush className="overflow-hidden">
@@ -225,6 +242,19 @@ export function Player({ src }: { src?: string } = {}) {
           onEnded={() => setPlaying(false)}
         />
 
+        {/* current chapter label overlay */}
+        {activeChapters.length > 0 && currentChapterIdx >= 0 && (
+          <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 backdrop-blur-sm">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: activeChapters[currentChapterIdx].color }}
+            />
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-white">
+              {activeChapters[currentChapterIdx].label}
+            </span>
+          </div>
+        )}
+
         {/* center play */}
         {!playing && (
           <button
@@ -237,12 +267,30 @@ export function Player({ src }: { src?: string } = {}) {
 
         {/* controls */}
         <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-black/70 to-transparent p-3">
-          <div
-            onClick={seek}
-            className="h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-white/25"
-          >
-            <div className="h-full rounded-full bg-[#F59E42]" style={{ width: `${progress}%` }} />
+          {/* progress bar with chapter markers */}
+          <div className="relative">
+            <div
+              onClick={seek}
+              className="h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-white/25"
+            >
+              <div className="h-full rounded-full bg-[#F59E42]" style={{ width: `${progress}%` }} />
+            </div>
+            {/* chapter tick marks */}
+            {activeChapters.map((ch, i) => {
+              if (i === 0) return null
+              const pct = duration ? (ch.start / duration) * 100 : 0
+              return (
+                <button
+                  key={ch.label}
+                  onClick={() => seekTo(ch.start)}
+                  style={{ left: `${pct}%`, backgroundColor: ch.color }}
+                  className="absolute top-1/2 h-3 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-90 hover:opacity-100 hover:scale-125 transition-transform"
+                  title={ch.label}
+                />
+              )
+            })}
           </div>
+
           <div className="flex items-center gap-3 text-white">
             <button onClick={toggle} className="hover:opacity-80">
               {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
@@ -262,6 +310,34 @@ export function Player({ src }: { src?: string } = {}) {
           </div>
         </div>
       </div>
+
+      {/* Chapter navigation strip */}
+      {activeChapters.length > 0 && (
+        <div className="flex border-t border-line">
+          {activeChapters.map((ch, i) => {
+            const isActive = i === currentChapterIdx
+            return (
+              <button
+                key={ch.label}
+                onClick={() => seekTo(ch.start)}
+                className={cn(
+                  'flex flex-1 flex-col items-center gap-0.5 px-2 py-2 text-center transition-colors hover:bg-paper',
+                  isActive ? 'bg-paper' : '',
+                )}
+              >
+                <span
+                  className={cn('h-1 w-full rounded-full transition-opacity', isActive ? 'opacity-100' : 'opacity-40')}
+                  style={{ backgroundColor: ch.color }}
+                />
+                <span className={cn('text-[10px] font-semibold leading-tight', isActive ? 'text-ink' : 'text-muted')}>
+                  {ch.label}
+                </span>
+                <span className="font-mono text-[9px] text-muted">{fmt(ch.start)}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
     </Card>
   )
 }

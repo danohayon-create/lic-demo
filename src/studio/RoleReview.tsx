@@ -16,7 +16,7 @@ import {
   deriveTeamRatings,
   type Candidate,
 } from '@/data/selection'
-import { Player, Transcript } from './Review'
+import { Player, Transcript, AUDITION_CHAPTERS } from './Review'
 import { asset } from '@/lib/asset'
 
 const ratingOptions = [
@@ -193,7 +193,7 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         {/* left column */}
         <div className="flex flex-col gap-4">
-          <Player key={candidate.id} src={asset(candidate.video)} />
+          <Player key={candidate.id} src={asset(candidate.video)} chapters={AUDITION_CHAPTERS} />
           <Transcript />
           <CastingHistoryCard />
           <TeamCommentsCard />
@@ -498,18 +498,18 @@ function CastingHistoryCard() {
         <ul className="flex max-h-64 flex-col gap-1.5 overflow-y-auto pr-1">
           {HISTORY_ENTRIES.map((entry) => (
             <li key={entry.show + entry.season} className="flex items-center gap-2 rounded-btn bg-paper px-3 py-2">
-              {/* play button */}
-              <button
-                onClick={() => setPreview(entry)}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink/8 text-ink hover:bg-ink/15 transition-colors"
-                title="Revoir la self-tape"
-              >
-                <Play className="ml-0.5 h-3 w-3" />
-              </button>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold text-ink">{entry.show} <span className="font-normal text-muted">· {entry.season}</span></p>
                 <p className="truncate text-[11px] text-muted">{entry.role}</p>
               </div>
+              {/* play button — rouge, centré dans la ligne */}
+              <button
+                onClick={() => setPreview(entry)}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-signal-no text-white hover:bg-signal-no/80 transition-colors shadow-sm"
+                title="Revoir la self-tape"
+              >
+                <Play className="ml-0.5 h-3 w-3" />
+              </button>
               {/* score */}
               <span className="shrink-0 font-mono text-xs font-bold text-muted">{entry.score}</span>
               <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${entry.color}`}>
