@@ -85,7 +85,7 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
   if (!candidate) {
     return (
       <div className="flex flex-col gap-4">
-        <Breadcrumb projectTitle={project.title} roleName={role.name} candidateName="" navigate={navigate} />
+        <Breadcrumb projectId={projectId} projectTitle={project.title} roleId={roleId} roleName={role.name} candidateName="" navigate={navigate} />
         <Card className="flex flex-col items-center gap-2 py-16 text-center">
           <span className="text-3xl">🎬</span>
           <p className="text-sm font-semibold text-ink">No submissions yet for this role</p>
@@ -104,7 +104,7 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
     <div className="flex flex-col gap-4">
       {/* breadcrumb + nav */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Breadcrumb projectTitle={project.title} roleName={role.name} candidateName={candidate.name} navigate={navigate} />
+        <Breadcrumb projectId={projectId} projectTitle={project.title} roleId={roleId} roleName={role.name} candidateName={candidate.name} navigate={navigate} />
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate(`/studio/selection?p=${projectId}&role=${role.id}`)}
@@ -902,20 +902,24 @@ function RoleDecisionPanel({
 /* ── Breadcrumb ─────────────────────────────────────────────────────────────── */
 
 function Breadcrumb({
-  projectTitle, roleName, candidateName, navigate,
+  projectId, projectTitle, roleId, roleName, candidateName, navigate,
 }: {
+  projectId: string
   projectTitle: string
+  roleId: string
   roleName: string
   candidateName: string
   navigate: ReturnType<typeof useNavigate>
 }) {
   return (
     <nav className="flex items-center gap-1.5 text-sm text-muted">
-      <button onClick={() => navigate('/studio/dashboard?p=les-ombres-de-midi')} className="hover:text-ink">
+      <button onClick={() => navigate(`/studio/selection?p=${projectId}&role=${roleId}`)} className="hover:text-ink">
         {projectTitle}
       </button>
       <ChevronRight className="h-3.5 w-3.5" />
-      <span className="text-ink">{roleName}</span>
+      <button onClick={() => navigate(`/studio/selection?p=${projectId}&role=${roleId}`)} className="hover:text-ink">
+        {roleName}
+      </button>
       {candidateName && (
         <>
           <ChevronRight className="h-3.5 w-3.5" />
