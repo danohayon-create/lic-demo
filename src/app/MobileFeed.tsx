@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { Heart, MessageCircle, Share2, Play, Bookmark, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { feedPosts } from '@/data/feed'
@@ -67,10 +67,19 @@ function FeedCard({ post: p }: { post: FeedPost }) {
       )}
 
       {/* media */}
-      {p.video ? (
+      {p.youtubeId ? (
+        <YouTubeEmbed videoId={p.youtubeId} title={p.youtubeTitle} />
+      ) : p.video ? (
         <VideoThumb src={p.video} poster={asset(p.image)} />
       ) : p.image ? (
-        <img src={asset(p.image)} alt="" className="w-full rounded-xl object-cover max-h-52" />
+        <div className="relative">
+          <img src={asset(p.image)} alt="" className="w-full rounded-xl object-cover max-h-52" />
+          {p.platform === 'instagram' && (
+            <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+              <span>📸</span> Instagram
+            </span>
+          )}
+        </div>
       ) : null}
 
       {/* banner */}
@@ -129,16 +138,146 @@ function AuthorAvatar({ author }: { author: FeedPost['author'] }) {
   )
 }
 
+// YouTube IFrame API singleton loader
+const ytCallbacks: Array<() => void> = []
+let ytApiReady = false
+
+function loadYouTubeApi(cb: () => void) {
+  if (ytApiReady) { cb(); return }
+  ytCallbacks.push(cb)
+  if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+    const script = document.createElement('script')
+    script.src = 'https://www.youtube.com/iframe_api'
+    document.head.appendChild(script)
+    ;(window as any).onYouTubeIframeAPIReady = () => {
+      ytApiReady = true
+      ytCallbacks.forEach((fn) => fn())
+      ytCallbacks.length = 0
+    }
+  }
+}
+
+function YouTubeEmbed({ videoId, title }: { videoId: string; title?: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const playerRef = useRef<any>(null)
+  const [ready, setReady] = useState(false)
+  const [muted, setMuted] = useState(true)
+
+  const initPlayer = useCallback(() => {
+    if (!containerRef.current || playerRef.current) return
+    playerRef.current = new (window as any).YT.Player(containerRef.current, {
+      videoId,
+      playerVars: { autoplay: 0, mute: 1, rel: 0, playsinline: 1, modestbranding: 1 },
+      events: {
+        onReady: () => setReady(true),
+      },
+    })
+  }, [videoId])
+
+  useEffect(() => {
+    loadYouTubeApi(initPlayer)
+    return () => {
+      playerRef.current?.destroy?.()
+      playerRef.current = null
+    }
+  }, [initPlayer])
+
+  useEffect(() => {
+    if (!ready || !wrapRef.current) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          playerRef.current?.playVideo()
+        } else {
+          playerRef.current?.pauseVideo()
+        }
+      },
+      { threshold: 0.5 },
+    )
+    observer.observe(wrapRef.current)
+    return () => observer.disconnect()
+  }, [ready])
+
+  const toggleMute = () => {
+    if (muted) {
+      playerRef.current?.unMute()
+    } else {
+      playerRef.current?.mute()
+    }
+    setMuted((m) => !m)
+  }
+
+  return (
+    <div ref={wrapRef} className="relative w-full overflow-hidden rounded-xl bg-black" style={{ aspectRatio: '16/9' }}>
+      <div ref={containerRef} className="absolute inset-0 h-full w-full" />
+      {!ready && (
+        <img
+          src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
+          alt={title}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+      {ready && (
+        <button
+          onClick={toggleMute}
+          className="absolute bottom-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm"
+          aria-label={muted ? 'Unmute' : 'Mute'}
+        >
+          <span className="text-[10px] font-bold">{muted ? '🔇' : '🔊'}</span>
+        </button>
+      )}
+      {!ready && (
+        <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-bold text-white">
+          <span className="text-red-500">▶</span> YouTube
+        </span>
+      )}
+    </div>
+  )
+}
+
 function VideoThumb({ src, poster }: { src: string; poster?: string }) {
   const ref = useRef<HTMLVideoElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
   const [playing, setPlaying] = useState(false)
+  const [muted, setMuted] = useState(true)
+
+  // Autoplay when visible, pause when out of viewport
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          ref.current?.play().catch(() => {})
+        } else {
+          ref.current?.pause()
+        }
+      },
+      { threshold: 0.5 },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (ref.current) {
+      ref.current.muted = !ref.current.muted
+      setMuted(ref.current.muted)
+    }
+  }
+
   return (
-    <div className="relative w-full overflow-hidden rounded-xl bg-black">
+    <div ref={wrapRef} className="relative w-full overflow-hidden rounded-xl bg-black">
       <video
         ref={ref}
         src={src}
         poster={poster}
         playsInline
+        muted
+        autoPlay
+        loop
         preload="metadata"
         className="w-full object-cover max-h-52"
         onClick={() => (playing ? ref.current?.pause() : ref.current?.play())}
@@ -155,6 +294,14 @@ function VideoThumb({ src, poster }: { src: string; poster?: string }) {
           </span>
         </button>
       )}
+      {/* Mute/unmute toggle */}
+      <button
+        onClick={toggleMute}
+        className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm"
+        aria-label={muted ? 'Unmute' : 'Mute'}
+      >
+        <span className="text-[10px] font-bold">{muted ? '🔇' : '🔊'}</span>
+      </button>
     </div>
   )
 }

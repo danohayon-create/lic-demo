@@ -361,6 +361,14 @@ export interface FeedPost {
   video?: string
   /** Banner label, e.g. "WORKSHOP · 30 MIN". */
   banner?: string
+  /** Route for the "View casting" CTA on casting posts. */
+  castingUrl?: string
+  /** YouTube video ID — renders a thumbnail + embedded player on click. */
+  youtubeId?: string
+  /** YouTube video title for accessibility / display. */
+  youtubeTitle?: string
+  /** Source platform badge ('youtube' | 'instagram'). */
+  platform?: 'youtube' | 'instagram'
   likes: number
   comments: number
   shares: number

@@ -70,7 +70,7 @@ function FeaturedCard() {
 
   const snapApply = () => {
     setConfirming(true)
-    setTimeout(() => navigate('/app/casting/evermore'), 1100)
+    setTimeout(() => navigate('/app/selftape/evermore'), 1100)
   }
 
   return (
@@ -79,10 +79,10 @@ function FeaturedCard() {
       <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/60 to-ink/10" />
 
       <div className="absolute inset-x-0 top-0 flex items-start justify-between p-4">
-        <Tag className="bg-black/50 text-white" icon={<Clock className="h-3 w-3" />}>
+        <Tag className="bg-signal-no text-white font-semibold" icon={<Clock className="h-3 w-3" />}>
           Closed in 1d 09h
         </Tag>
-        <Tag tone="gold" className="font-bold">
+        <Tag className="bg-gold text-ink font-bold">
           MATCH SCORE 92
         </Tag>
       </div>

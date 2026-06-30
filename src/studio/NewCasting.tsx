@@ -490,8 +490,12 @@ function StepUpload({
   const removeVideo = (i: number) => onVideoBriefs(videoBriefs.filter((_, idx) => idx !== i))
 
   const useSample = () => {
-    onDocuments([{ name: 'character_breakdown_ombres_de_midi.pdf · 8.2 MB' }])
-    onVideoBriefs([{ name: 'director_brief_ombres_de_midi.mp4 · 24.6 MB', url: '/brief-project.mp4' }])
+    if (isNonScripted) {
+      onVideoBriefs([{ name: 'castingdirector.mp4 · 18.4 MB', url: '/casting-nonscripted/castingdirector.mp4' }])
+    } else {
+      onDocuments([{ name: 'character_breakdown_ombres_de_midi.pdf · 8.2 MB' }])
+      onVideoBriefs([{ name: 'director_brief_ombres_de_midi.mp4 · 24.6 MB', url: '/brief-project.mp4' }])
+    }
   }
 
   const hasAny = documents.length > 0 || videoBriefs.length > 0
@@ -763,7 +767,7 @@ function StepRoles({
   const videoUrl = videoBriefs[0]?.url
 
   const recordBrief = () =>
-    onVideoBriefs([{ name: 'Director brief (recorded)', url: '/brief-project.mp4' }])
+    onVideoBriefs([{ name: 'Director brief (recorded)', url: '/casting-nonscripted/castingdirector.mp4' }])
 
   const uploadBrief = (files: FileList | null) => {
     if (!files || files.length === 0) return
@@ -1350,7 +1354,7 @@ function StepCandidates({
     onSelfTapeDocs([...selfTapeDocs, { name: 'contestant_brief_mc17.pdf · 3.4 MB' }])
 
   const useSampleVideo = () =>
-    onSelfTapeVideo({ name: 'masterchef_s17_selftape_guide.mp4 · 18.2 MB', url: '/brief-project.mp4' })
+    onSelfTapeVideo({ name: 'castingdirector.mp4 · 18.4 MB', url: '/casting-nonscripted/castingdirector.mp4' })
 
   const slots = Array.from({ length: count }, (_, i) => `Contestant ${i + 1}`)
 

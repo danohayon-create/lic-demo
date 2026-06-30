@@ -335,47 +335,45 @@ export function CommandCenter() {
 
 /* ── Sidebar ──────────────────────────────────────────────────────────────── */
 
-function CommandSidebar({ scenario }: { scenario: Scenario }) {
+function CommandSidebar({ scenario: _scenario }: { scenario: Scenario }) {
   const navigate = useNavigate()
-  // Sort breakdown descending by delta — rank 0 = most = red
-  const ranked = [...scenario.auditions.breakdown].sort((a, b) => b.delta - a.delta)
+  // Use the full projects list sorted by today's submissions (same as Dashboard sidebar)
+  const ranked = [...projects].sort(
+    (a, b) => (b.kpis?.submissions.today ?? 0) - (a.kpis?.submissions.today ?? 0)
+  )
 
   return (
     <aside className="flex flex-col gap-4">
       <Card className="flex flex-col gap-3">
         <span className="tech-label">Active Castings</span>
-        <ul className="flex flex-col gap-1">
-          {ranked.map((b, i) => {
-            const project = projectsById[b.projectId]
+        <ul className="flex flex-col gap-1 max-h-[420px] overflow-y-auto pr-1">
+          {ranked.map((project, rank) => {
+            const today = project.kpis?.submissions.today ?? 0
             return (
-              <li key={b.projectId}>
+              <li key={project.id}>
                 <button
-                  onClick={() => navigate(`/studio/dashboard?p=${b.projectId}`)}
+                  onClick={() => navigate(`/studio/dashboard?p=${project.id}`)}
                   className="flex w-full items-center gap-2.5 rounded-btn px-2 py-2 text-left hover:bg-ink/5"
                 >
-                  {/* Poster thumbnail */}
-                  {project?.poster && (
+                  {project.poster && (
                     <img
                       src={asset(project.poster)}
-                      alt={b.label}
+                      alt={project.title}
                       className="h-9 w-9 shrink-0 rounded object-cover ring-1 ring-line"
                     />
                   )}
-                  {/* Rank color square */}
-                  <span className={cn('h-2 w-2 shrink-0 rounded-sm', RANK_DOT[i])} />
-                  {/* Title + subtitle */}
+                  <span className={cn('h-2 w-2 shrink-0 rounded-sm', rank < 4 ? RANK_DOT[rank] : 'bg-line')} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-ink">{b.label}</p>
-                    {project && (
-                      <p className="truncate text-[11px] text-muted">
-                        {project.type} · {project.company}
-                      </p>
-                    )}
+                    <p className="truncate text-sm font-bold text-ink">{project.title}</p>
+                    <p className="truncate text-[11px] text-muted">
+                      {project.type} · {project.company}
+                    </p>
                   </div>
-                  {/* Delta */}
-                  <span className={cn('shrink-0 font-mono text-xs font-bold', RANK_TEXT[i])}>
-                    +{b.delta}
-                  </span>
+                  {today > 0 && (
+                    <span className={cn('shrink-0 font-mono text-xs font-bold', rank < 4 ? RANK_TEXT[rank] : 'text-muted')}>
+                      +{today}
+                    </span>
+                  )}
                 </button>
               </li>
             )

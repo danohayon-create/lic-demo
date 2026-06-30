@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { X, Crop, ChevronRight, Check, Send, RotateCcw, Zap, BookOpen, Mic, PersonStanding, ListChecks } from 'lucide-react'
+import { X, Crop, ChevronRight, Check, Send, RotateCcw, Zap, BookOpen, Mic, PersonStanding, ListChecks, Pause, Play, ShieldCheck, Loader } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useToast } from '@/components/Toast'
 import { discoverCastingsById, sidesById, type SideLine } from '@/data'
 import { asset } from '@/lib/asset'
+import { Logo } from '@/components/ui'
 
 // ── Self-tape types ──────────────────────────────────────────────────────────
 
@@ -245,6 +246,9 @@ function SegmentGuide({ onStart, onBack }: { onStart: () => void; onBack: () => 
 
 // ── Camera screen ────────────────────────────────────────────────────────────
 
+// Segment start times in seconds
+const SEG_STARTS = [0, 30, 75, 135]
+
 function Camera({ id, tapeType }: { id: string; tapeType: string }) {
   const navigate = useNavigate()
   const toast = useToast()
@@ -255,8 +259,11 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
   const [camError, setCamError] = useState(false)
   const [ratio, setRatio] = useState('1 / 1')
   const [recording, setRecording] = useState(false)
+  const [paused, setPaused] = useState(false)
   const [elapsed, setElapsed] = useState(0)
-  const [done, setDone] = useState(false)
+  // null = not done; 'checking' = AI verification; 'done' = ready to send
+  const [phase, setPhase] = useState<null | 'checking' | 'done'>(null)
+  const [aiChecks, setAiChecks] = useState<string[]>([])
 
   useEffect(() => {
     let stream: MediaStream | null = null
@@ -276,15 +283,37 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
   }, [])
 
   useEffect(() => {
-    if (!recording) return
+    if (!recording || paused) return
     const t = setInterval(() => setElapsed((e) => e + 1), 1000)
     return () => clearInterval(t)
-  }, [recording])
+  }, [recording, paused])
 
-  const toggleRec = () => {
-    if (recording) { setRecording(false); setDone(true) }
-    else { setElapsed(0); setRecording(true) }
-  }
+  // AI verification sequence
+  useEffect(() => {
+    if (phase !== 'checking') return
+    const checks = [
+      'Analysing facial micro-expressions…',
+      'Checking for deepfake artefacts…',
+      'Verifying real-time capture metadata…',
+      'Scanning for AI-generated synthesis…',
+    ]
+    let i = 0
+    const t = setInterval(() => {
+      i++
+      setAiChecks(checks.slice(0, i))
+      if (i >= checks.length) {
+        clearInterval(t)
+        setTimeout(() => setPhase('done'), 600)
+      }
+    }, 700)
+    return () => clearInterval(t)
+  }, [phase])
+
+  const startRec = () => { setElapsed(0); setRecording(true); setPaused(false) }
+  const pauseRec = () => setPaused((v) => !v)
+  const stopRec = () => { setRecording(false); setPaused(false); setPhase('checking'); setAiChecks([]) }
+  const jumpToSegment = (i: number) => { setElapsed(SEG_STARTS[i]); if (!recording) setRecording(true); setPaused(false) }
+  const retake = () => { setPhase(null); setElapsed(0); setRecording(false); setPaused(false) }
 
   const min = Math.floor(elapsed / 60)
   const sec = elapsed % 60
@@ -294,6 +323,7 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
   const isStructured = tapeType === 'structured'
   const { index: segIdx, remaining: segRemaining } = getSegment(elapsed)
   const currentSeg = SEGMENTS[segIdx]
+  const totalDuration = SEGMENTS.reduce((s, seg) => s + seg.duration, 0)
 
   return (
     <div className="flex h-full flex-col bg-ink text-white">
@@ -312,14 +342,11 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
         <div className="h-9 w-9" />
       </div>
 
-      {/* camera — flex-1 so it fills available space */}
+      {/* camera viewfinder */}
       <div className="flex flex-1 items-center justify-center px-3">
-        <div
-          className="relative w-full overflow-hidden rounded-2xl bg-black"
-          style={{ aspectRatio: ratio }}
-        >
+        <div className="relative w-full overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: ratio }}>
           {camError ? (
-            <video src={asset("/media/selftape.mp4")} autoPlay loop muted playsInline className="h-full w-full object-cover" />
+            <video src={asset('/media/selftape.mp4')} autoPlay loop muted playsInline className="h-full w-full object-cover" />
           ) : (
             <video ref={videoRef} autoPlay muted playsInline className="h-full w-full -scale-x-100 object-cover" />
           )}
@@ -335,19 +362,31 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
             ))}
           </div>
 
-          {/* overlays */}
+          {/* LIC watermark */}
+          <div className="pointer-events-none absolute bottom-10 right-3 flex items-center gap-1 opacity-50">
+            <Logo markOnly size={14} />
+            <span className="font-mono text-[9px] font-bold tracking-widest text-white">LET IT CAST</span>
+          </div>
+
+          {/* top-left: rec indicator + timecode */}
           <div className="absolute left-3 top-3 flex items-center gap-2">
-            {recording && (
-              <span className="flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-1 text-xs font-bold">
+            {recording && !paused && (
+              <span className="flex items-center gap-1.5 rounded-full bg-black/60 px-2 py-1 text-xs font-bold">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-signal-no" />
                 REC
               </span>
             )}
-            <span className="rounded-full bg-black/55 px-2 py-1 font-mono text-xs">{timecode}</span>
+            {paused && (
+              <span className="flex items-center gap-1.5 rounded-full bg-black/60 px-2 py-1 text-xs font-bold text-gold">
+                <span className="h-2 w-2 rounded-full bg-gold" />
+                PAUSE
+              </span>
+            )}
+            <span className="rounded-full bg-black/60 px-2 py-1 font-mono text-xs">{timecode}</span>
           </div>
-          <span className="absolute right-3 top-3 rounded bg-black/55 px-1.5 py-0.5 font-mono text-[10px] font-semibold">HD</span>
+          <span className="absolute right-3 top-3 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] font-semibold">HD</span>
 
-          {/* structured segment overlay */}
+          {/* structured segment overlay while recording */}
           {isStructured && recording && (
             <div className="absolute inset-x-3 top-10 flex flex-col items-center gap-1">
               <div className="flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 backdrop-blur">
@@ -355,23 +394,12 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
                   {segIdx + 1}
                 </span>
                 <span className="text-xs font-semibold text-white">{currentSeg.label}</span>
-                <span className="font-mono text-[10px] text-white/60">{segRemaining}s</span>
-              </div>
-              {/* segment progress dots */}
-              <div className="flex gap-1.5">
-                {SEGMENTS.map((_, i) => (
-                  <span
-                    key={i}
-                    className={cn(
-                      'h-1.5 rounded-full transition-all',
-                      i < segIdx ? 'w-3 bg-white/60' : i === segIdx ? 'w-5 bg-white' : 'w-1.5 bg-white/20',
-                    )}
-                  />
-                ))}
+                {!paused && <span className="font-mono text-[10px] text-white/60">{segRemaining}s</span>}
               </div>
             </div>
           )}
 
+          {/* quality badges */}
           <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2 text-[11px]">
             {['Framing', 'Audio', 'Light cool'].map((c) => (
               <span key={c} className="flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-white/90">
@@ -389,76 +417,155 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
           <button
             key={r.label}
             onClick={() => setRatio(r.value)}
-            className={cn(
-              'rounded-full px-3 py-1 font-mono text-xs font-semibold transition-colors',
-              ratio === r.value ? 'bg-white text-ink' : 'bg-white/10 text-white/70',
-            )}
+            className={cn('rounded-full px-3 py-1 font-mono text-xs font-semibold transition-colors',
+              ratio === r.value ? 'bg-white text-ink' : 'bg-white/10 text-white/70')}
           >
             {r.label}
           </button>
         ))}
       </div>
 
-      {/* structured segment hint bar */}
-      {isStructured && !recording && (
+      {/* structured segment navigator (always visible for structured) */}
+      {isStructured && (
         <div className="mx-4 mb-1 rounded-xl bg-white/5 p-3 ring-1 ring-white/10">
           <div className="mb-2 flex items-center justify-between">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-label text-white/50">Structured audition</span>
-            <span className="font-mono text-[10px] text-white/50">4 segments · 165s</span>
+            <span className="font-mono text-[10px] text-white/50">4 segments · {totalDuration}s</span>
           </div>
           <div className="flex gap-1.5">
-            {SEGMENTS.map((seg, i) => (
-              <div key={i} className="flex flex-1 flex-col gap-0.5">
-                <div className={cn('h-1 rounded-full', SEGMENT_COLORS[i].split(' ')[0])} />
-                <span className="text-[9px] text-white/40 truncate">{seg.label}</span>
-              </div>
-            ))}
+            {SEGMENTS.map((seg, i) => {
+              const isActive = recording && segIdx === i
+              const isDone = recording && i < segIdx
+              return (
+                <button
+                  key={i}
+                  onClick={() => jumpToSegment(i)}
+                  className={cn('flex flex-1 flex-col gap-0.5 rounded-lg p-1 transition-colors',
+                    isActive ? 'bg-white/10 ring-1 ring-white/30' : 'hover:bg-white/8')}
+                  title={`Jump to segment ${i + 1}: ${seg.label}`}
+                >
+                  <div className={cn('h-1.5 w-full rounded-full transition-opacity',
+                    SEGMENT_COLORS[i].split(' ')[0],
+                    isDone ? 'opacity-40' : 'opacity-100')} />
+                  <div className="flex items-center justify-between">
+                    <span className={cn('text-[9px] font-semibold truncate',
+                      isActive ? 'text-white' : isDone ? 'text-white/30' : 'text-white/50')}>
+                      {i + 1}. {seg.label}
+                    </span>
+                    {isDone && <Check className="h-2.5 w-2.5 shrink-0 text-white/30" />}
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
 
-      {/* teleprompter — compact, only for scene type */}
-      {tapeType === 'scene' && <Teleprompter lines={sides.lines} recording={recording} />}
+      {/* teleprompter — scene type only */}
+      {tapeType === 'scene' && <Teleprompter lines={sides.lines} recording={recording && !paused} />}
 
       {/* controls */}
       <div className="flex items-center justify-between px-8 pb-10 pt-3">
+        {/* left: reframe or pause */}
+        {recording ? (
+          <button
+            onClick={pauseRec}
+            className={cn('flex h-11 w-11 items-center justify-center rounded-full transition-colors',
+              paused ? 'bg-gold text-ink' : 'bg-white/10 text-white/80')}
+            aria-label={paused ? 'Resume' : 'Pause'}
+          >
+            {paused ? <Play className="h-5 w-5 fill-current" /> : <Pause className="h-5 w-5" />}
+          </button>
+        ) : (
+          <button
+            onClick={() => toast('Reframe — coming soon')}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white/80"
+          >
+            <Crop className="h-5 w-5" />
+          </button>
+        )}
+
+        {/* center: record / stop */}
+        {!recording ? (
+          <button
+            onClick={startRec}
+            className="flex items-center justify-center rounded-full ring-4 ring-white/30"
+            style={{ height: 72, width: 72 }}
+            aria-label="Start recording"
+          >
+            <span className="h-14 w-14 rounded-full bg-signal-no transition-all" />
+          </button>
+        ) : (
+          <button
+            onClick={stopRec}
+            className="flex items-center justify-center rounded-full ring-4 ring-signal-no/40"
+            style={{ height: 72, width: 72 }}
+            aria-label="Stop recording"
+          >
+            <span className="h-7 w-7 rounded-md bg-signal-no transition-all" />
+          </button>
+        )}
+
+        {/* right: next segment or placeholder */}
         <button
-          onClick={() => toast('Reframe — coming soon')}
+          onClick={() => isStructured ? jumpToSegment(Math.min(segIdx + 1, 3)) : toast('Next take')}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white/80"
-        >
-          <Crop className="h-5 w-5" />
-        </button>
-        <button
-          onClick={toggleRec}
-          className="flex items-center justify-center rounded-full ring-4 ring-white/30"
-          style={{ height: 72, width: 72 }}
-          aria-label={recording ? 'Stop recording' : 'Start recording'}
-        >
-          <span
-            className={cn('bg-signal-no transition-all', recording ? 'h-6 w-6 rounded-md' : 'h-14 w-14 rounded-full')}
-          />
-        </button>
-        <button
-          onClick={() => toast('Next take')}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white/80"
+          title={isStructured ? 'Next segment' : 'Next take'}
         >
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
 
+      {/* AI verification overlay */}
+      {phase === 'checking' && (
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-5 bg-ink px-8 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
+            <Loader className="h-8 w-8 animate-spin text-link" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">Authenticity check</h2>
+            <p className="mt-1 text-xs text-white/50">Let it Cast verifies every submission is human and real-time</p>
+          </div>
+          <div className="w-full max-w-xs rounded-2xl bg-white/6 p-4 text-left">
+            {[
+              'Analysing facial micro-expressions…',
+              'Checking for deepfake artefacts…',
+              'Verifying real-time capture metadata…',
+              'Scanning for AI-generated synthesis…',
+            ].map((line, i) => {
+              const done = aiChecks.length > i
+              return (
+                <div key={i} className={cn('flex items-center gap-2 py-1.5 text-xs transition-opacity', done ? 'opacity-100' : 'opacity-20')}>
+                  {done
+                    ? <Check className="h-3.5 w-3.5 shrink-0 text-signal-good" />
+                    : <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-white/30" />}
+                  <span className={done ? 'text-white' : 'text-white/50'}>{line}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* confirmation overlay */}
-      {done && (
-        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-ink/92 px-8 text-center backdrop-blur">
-          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-signal-good text-white">
-            <Check className="h-8 w-8" />
-          </span>
+      {phase === 'done' && (
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-ink px-8 text-center">
+          <div className="flex flex-col items-center gap-2">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-signal-good text-white">
+              <ShieldCheck className="h-8 w-8" />
+            </span>
+            <div className="flex items-center gap-1.5 rounded-full bg-signal-good/15 px-3 py-1">
+              <Check className="h-3 w-3 text-signal-good" />
+              <span className="text-[11px] font-semibold text-signal-good">Let it Cast certified — no AI detected</span>
+            </div>
+          </div>
           <div>
             <h2 className="text-xl font-bold">Audition recorded</h2>
             <p className="mt-1 text-sm text-white/70">
               {casting.title} · {casting.roleName} · {timecode}
             </p>
             {isStructured && (
-              <p className="mt-1 text-xs text-white/50">4 segments · AI analysis ready in ~2 min</p>
+              <p className="mt-1 text-xs text-white/50">4 segments · AI scene analysis ready in ~2 min</p>
             )}
           </div>
           <button
@@ -466,10 +573,10 @@ function Camera({ id, tapeType }: { id: string; tapeType: string }) {
             className="flex w-full max-w-[240px] items-center justify-center gap-2 rounded-btn bg-cream py-3 text-sm font-bold text-ink"
           >
             <Send className="h-4 w-4" />
-            Send
+            Send audition
           </button>
           <button
-            onClick={() => { setDone(false); setElapsed(0) }}
+            onClick={retake}
             className="flex items-center gap-1.5 text-sm font-medium text-white/70 hover:text-white"
           >
             <RotateCcw className="h-4 w-4" />

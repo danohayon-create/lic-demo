@@ -195,7 +195,7 @@ function Sidebar({ activeId, onNewCasting }: { activeId: string; onNewCasting: (
     <aside className="flex flex-col gap-4">
       <Card className="flex flex-col gap-3">
         <span className="tech-label">Active Castings</span>
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-col gap-1 max-h-[420px] overflow-y-auto pr-1">
           {ranked.map((p, rank) => {
             const active = p.id === activeId
             const today = p.kpis?.submissions.today ?? 0

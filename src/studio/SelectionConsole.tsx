@@ -39,6 +39,7 @@ import {
   moveCandidate,
   rateCandidate,
   candidateScore,
+  candidateAverageRating,
   deriveTeamRatings,
   BOARD_COLUMNS,
   BOARD_COLUMN_LABELS,
@@ -85,6 +86,7 @@ const EMPTY_FILTERS: SavedSearchFilters = {
   languages: [],
   query: '',
   reviewStatus: null,
+  sceneStarsMin: null,
 }
 
 function activeFilterCount(f: SavedSearchFilters): number {
@@ -98,7 +100,8 @@ function activeFilterCount(f: SavedSearchFilters): number {
     f.languages.length +
     (f.scoreMin != null || f.scoreMax != null ? 1 : 0) +
     (f.query.trim() ? 1 : 0) +
-    (f.reviewStatus != null ? 1 : 0)
+    (f.reviewStatus != null ? 1 : 0) +
+    (f.sceneStarsMin != null ? 1 : 0)
   )
 }
 
@@ -160,6 +163,7 @@ export function SelectionConsole() {
         return false
       if (filters.reviewStatus === 'reviewed' && c.good === 0 && c.maybe === 0 && c.no === 0) return false
       if (filters.reviewStatus === 'not_reviewed' && c.status !== 'new') return false
+      if (filters.sceneStarsMin != null && Math.round(candidateAverageRating(c)) < filters.sceneStarsMin) return false
       if (filters.languages.length > 0 && !(c.languages ?? []).some((l) => filters.languages.includes(l)))
         return false
       if (q) {
@@ -402,6 +406,7 @@ export function SelectionConsole() {
         activeCount={activeCount}
         onSave={() => setSaveSearchOpen(true)}
         projectId={project.id}
+        isNonScripted={project.format === 'non_scripted'}
       />
 
       {/* View toolbar */}
@@ -524,7 +529,9 @@ export function SelectionConsole() {
             ? 'Drag a candidate card between columns to move them through the pipeline. New submissions must be reviewed before they can move.'
             : view === 'list'
               ? 'Double-click a row to watch the review.'
-              : 'Each role shows its current pick — Select to open the list and choose a candidate.'}
+              : project.format === 'non_scripted'
+                ? 'Move candidates to Cast across any team to fill the contestant slots on The Wall.'
+                : 'Each role shows its current pick — Select to open the list and choose a candidate.'}
       </p>
 
       {columnFocus && view === 'list' && (
@@ -664,6 +671,8 @@ export function SelectionConsole() {
           roles={roles}
           allCandidates={allCandidates}
           onPlay={(c) => setWatchQueue([c])}
+          isNonScripted={project.format === 'non_scripted'}
+          contestantCount={project.kpis?.roles.total ?? roles.length}
         />
       )}
 
@@ -750,6 +759,7 @@ function FilterBar({
   activeCount,
   onSave,
   projectId,
+  isNonScripted,
 }: {
   filters: SavedSearchFilters
   onFilters: (f: SavedSearchFilters) => void
@@ -760,6 +770,7 @@ function FilterBar({
   activeCount: number
   onSave: () => void
   projectId: string
+  isNonScripted?: boolean
 }) {
   const toast = useToast()
   const savedSearches = useSavedSearches(projectId)
@@ -778,7 +789,7 @@ function FilterBar({
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <FilterDropdown label="Role / Candidate" count={filters.roleIds.length}>
+        <FilterDropdown label={isNonScripted ? 'Casting Team' : 'Role / Candidate'} count={filters.roleIds.length}>
           <CheckList
             options={roles.map((r) => ({ value: r.id, label: r.name }))}
             selected={filters.roleIds}
@@ -816,6 +827,31 @@ function FilterBar({
                 {label}
               </button>
             ))}
+          </div>
+        </FilterDropdown>
+
+        <FilterDropdown label="Scene score" count={filters.sceneStarsMin != null ? 1 : 0}>
+          <div className="flex flex-col gap-2 p-2">
+            <p className="text-xs text-muted">Minimum scene analysis rating</p>
+            <div className="flex gap-1.5">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => onFilters({ ...filters, sceneStarsMin: filters.sceneStarsMin === n ? null : n })}
+                  className={cn(
+                    'flex h-8 w-8 items-center justify-center rounded-btn border text-sm font-bold transition-all',
+                    filters.sceneStarsMin != null && n <= filters.sceneStarsMin
+                      ? 'border-gold bg-gold/20 text-[#8A6D00]'
+                      : 'border-line bg-paper text-muted hover:border-gold/60',
+                  )}
+                >
+                  {n}★
+                </button>
+              ))}
+            </div>
+            {filters.sceneStarsMin != null && (
+              <p className="text-[11px] text-muted">{filters.sceneStarsMin}+ stars minimum</p>
+            )}
           </div>
         </FilterDropdown>
 
@@ -1484,13 +1520,18 @@ function WallView({
   roles,
   allCandidates,
   onPlay,
+  isNonScripted = false,
+  contestantCount = 0,
 }: {
   roles: Role[]
   allCandidates: Candidate[]
   onPlay: (candidate: Candidate) => void
+  isNonScripted?: boolean
+  contestantCount?: number
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [focusRoleId, setFocusRoleId] = useState<string | null>(null)
+  const [pickerSlot, setPickerSlot] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
   const roleRefs = useRef<Record<string, HTMLElement | null>>({})
@@ -1505,9 +1546,17 @@ function WallView({
     }, 80)
   }
 
+  const openSlotPicker = (slotIndex: number) => {
+    setPickerSlot(slotIndex)
+    setPickerOpen(true)
+    setSearchQuery('')
+    setTimeout(() => searchRef.current?.focus(), 80)
+  }
+
   const closePicker = () => {
     setPickerOpen(false)
     setFocusRoleId(null)
+    setPickerSlot(null)
     setSearchQuery('')
   }
 
@@ -1515,6 +1564,161 @@ function WallView({
     moveCandidate(candidateId, 'shortlisted')
   }
 
+  // ── Non-scripted wall: N contestant slots filled from the shared pool ──────
+  if (isNonScripted) {
+    const slotCount = contestantCount || roles.length
+    const castPool = allCandidates
+      .filter((c) => c.status === 'cast' || c.status === 'offer')
+      .sort((a, b) => candidateScore(b) - candidateScore(a))
+    const slots: (Candidate | null)[] = Array.from({ length: slotCount }, (_, i) => castPool[i] ?? null)
+
+    // Candidates eligible for the picker: shortlisted and above, not already cast/offer
+    const pickerCandidates = allCandidates
+      .filter((c) => {
+        if (c.status === 'new' || c.status === 'no-go' || c.status === 'cast' || c.status === 'offer') return false
+        if (searchQuery) return c.name.toLowerCase().includes(searchQuery.toLowerCase())
+        return true
+      })
+      .sort((a, b) => candidateScore(b) - candidateScore(a))
+
+    return (
+      <>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {slots.map((person, i) => (
+            <Card key={i} flush className="flex flex-col overflow-hidden">
+              {person ? (
+                <>
+                  <div className="group relative aspect-square overflow-hidden bg-paper">
+                    {person.avatar ? (
+                      <img src={asset(person.avatar)} alt={person.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <Avatar name={person.name} size="xl" />
+                      </div>
+                    )}
+                    <button
+                      onClick={() => onPlay(person)}
+                      className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-ink shadow-lg">
+                        <Play className="ml-0.5 h-4 w-4" />
+                      </span>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeFromWall(person.id) }}
+                      className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-signal-no/80"
+                      title="Remove from wall"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex flex-1 flex-col gap-1.5 p-3">
+                    <p className="text-xs font-bold uppercase tracking-label text-muted">Contestant {i + 1}</p>
+                    <p className="truncate text-sm font-semibold text-ink">{person.name}</p>
+                    <div className="mt-auto flex items-center justify-between">
+                      <span className={cn(
+                        'rounded-full px-2 py-0.5 text-[10px] font-bold',
+                        person.status === 'cast' ? 'bg-signal-good-bg text-signal-good' : 'bg-gold/15 text-[#8A6D00]',
+                      )}>
+                        {person.status === 'cast' ? 'Cast' : 'Offer'}
+                      </span>
+                      <span className="text-xs font-bold text-match">{candidateScore(person)}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex h-32 items-center justify-center bg-paper">
+                    <UserRound className="h-10 w-10 text-line" />
+                  </div>
+                  <div className="flex flex-1 flex-col gap-2 p-4">
+                    <p className="text-xs font-bold uppercase tracking-label text-muted">Contestant {i + 1}</p>
+                    <p className="text-xs text-muted">Slot open</p>
+                    <Button size="sm" variant="secondary" className="mt-auto" onClick={() => openSlotPicker(i)}>
+                      Select
+                    </Button>
+                  </div>
+                </>
+              )}
+            </Card>
+          ))}
+        </div>
+
+        {/* ── Non-scripted picker: full pool, no role grouping ── */}
+        {pickerOpen && (
+          <div className="fixed inset-0 z-50 flex flex-col bg-card">
+            <div className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
+              <div className="flex items-center gap-3">
+                <button onClick={closePicker} className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-ink/5 hover:text-ink">
+                  <X className="h-5 w-5" />
+                </button>
+                <h2 className="text-base font-bold text-ink">Select a contestant</h2>
+                {pickerSlot !== null && (
+                  <span className="rounded-full bg-link/10 px-2.5 py-0.5 text-xs font-semibold text-link">
+                    Contestant {pickerSlot + 1}
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                <input
+                  ref={searchRef}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by name…"
+                  className="h-9 w-60 rounded-full border border-line bg-paper pl-9 pr-4 text-sm outline-none focus:border-ink/30"
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              {pickerCandidates.length > 0 ? (
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
+                  {pickerCandidates.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => { moveCandidate(c.id, 'cast'); closePicker() }}
+                      className="group relative overflow-hidden rounded-card border border-transparent transition-all hover:border-link/40 hover:shadow-card-hover focus:outline-none focus:ring-2 focus:ring-link/40"
+                    >
+                      <div className="relative aspect-[3/4] w-full overflow-hidden bg-paper">
+                        {c.avatar ? (
+                          <img src={asset(c.avatar)} alt={c.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-paper">
+                            <UserRound className="h-8 w-8 text-line" />
+                          </div>
+                        )}
+                        <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                          {candidateScore(c)}
+                        </span>
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 pt-8">
+                          <p className="truncate text-left text-[11px] font-bold leading-tight text-white">{c.name}</p>
+                          <p className="truncate text-left text-[10px] leading-tight text-white/60">{roles.find((r) => r.id === c.roleId)?.name ?? ''}</p>
+                        </div>
+                        <div className="absolute inset-0 flex items-center justify-center bg-link/20 opacity-0 transition-opacity group-hover:opacity-100">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-lg">
+                            <Check className="h-5 w-5 text-link" />
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+                  <UserRound className="h-12 w-12 text-line" />
+                  <p className="text-sm font-semibold text-muted">
+                    {searchQuery ? 'No candidates match your search' : 'No shortlisted candidates available — review submissions first'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // ── Scripted wall: one card per role ──────────────────────────────────────
   return (
     <>
       {/* ── Wall grid ── */}
@@ -1914,9 +2118,132 @@ function DiversityBar({ allCandidates }: { allCandidates: Candidate[] }) {
 
 /* ── Pairwise comparison modal ────────────────────────────────────────────── */
 
-const SCENE_LABELS = ['Authenticity', 'Charisma', 'Originality', 'Watchability', 'Camera presence']
-const SCENE_VALUES_A = [88, 82, 74, 91, 68]
-const SCENE_VALUES_B = [76, 90, 85, 70, 63]
+function pairwiseHistoricalScore(c: Candidate): number {
+  const seed = c.id.split('').reduce((a, ch) => a + ch.charCodeAt(0), 0)
+  return 40 + (seed * 13) % 45
+}
+
+function pairwiseLicScore(c: Candidate): number {
+  const ratingScore = candidateScore(c)
+  const pastScore = pairwiseHistoricalScore(c)
+  return Math.round(ratingScore * 0.5 + pastScore * 0.5)
+}
+
+const PAIRWISE_HISTORY = [
+  { show: 'MAFS AU',         result: 'Cast',        pts: 100 },
+  { show: "I'm a Celebrity", result: 'Cast',        pts: 100 },
+  { show: 'Survivor AU',     result: 'Callback',    pts: 75  },
+  { show: 'The Bachelor AU', result: 'Callback',    pts: 75  },
+  { show: 'Big Brother AU',  result: 'Shortlisted', pts: 50  },
+]
+
+function CandidateScoreCard({ candidate, label }: { candidate: Candidate; label: 'A' | 'B' }) {
+  const ratingScore = candidateScore(candidate)
+  const pastScore = pairwiseHistoricalScore(candidate)
+  const licScore = pairwiseLicScore(candidate)
+
+  return (
+    <div className="flex flex-col gap-3 rounded-btn border border-line p-4">
+      {/* Identity */}
+      <div className="flex items-center gap-3">
+        <div className="relative shrink-0">
+          {candidate.avatar ? (
+            <img src={asset(candidate.avatar)} alt={candidate.name} className="h-14 w-14 rounded-full object-cover ring-2 ring-purple-400" />
+          ) : (
+            <Avatar name={candidate.name} size="lg" />
+          )}
+          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-purple-500 text-[10px] font-bold text-white">
+            {label}
+          </span>
+        </div>
+        <div className="min-w-0">
+          <p className="truncate font-bold text-ink">{candidate.name}</p>
+          <p className="text-xs text-muted">{candidate.age} y/o · {candidate.city}</p>
+          <div className="mt-1 flex items-center gap-1.5">
+            <span className="text-sm font-bold text-gold">⚡ {licScore}</span>
+            <span className="text-xs text-muted">LIC score</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Status */}
+      <Tag tone={candidate.status === 'cast' || candidate.status === 'offer' ? 'good' : candidate.status === 'new' ? 'neutral' : 'link'}>
+        {BOARD_COLUMN_LABELS[candidate.status]}
+      </Tag>
+
+      {/* Compact video */}
+      <div className="overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '16/9' }}>
+        {candidate.video ? (
+          <video src={asset(candidate.video)} controls playsInline preload="metadata" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <Play className="h-8 w-8 text-white/30" />
+          </div>
+        )}
+      </div>
+
+      {/* Performance breakdown */}
+      <div className="flex flex-col gap-2">
+
+        {/* Family 1 — Current casting */}
+        <div className="rounded-btn bg-paper p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-label text-link">① Current Casting</p>
+            <span className="text-xs font-bold text-link">{ratingScore}/100</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-20 shrink-0 text-[10px] text-muted">Team rating</span>
+            <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-line">
+              <div className="absolute inset-y-0 left-0 rounded-full bg-signal-good" style={{ width: `${ratingScore}%` }} />
+            </div>
+            <span className="w-6 text-right text-[10px] font-semibold text-ink">{ratingScore}</span>
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="w-20 shrink-0 text-[10px] text-muted">Scene analysis</span>
+            <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-line">
+              <div className="absolute inset-y-0 left-0 rounded-full bg-line/50" style={{ width: '0%' }} />
+            </div>
+            <span className="w-6 text-right text-[10px] text-muted">—</span>
+          </div>
+          <p className="mt-1.5 text-[10px] italic text-muted">Scene analysis not yet rated</p>
+        </div>
+
+        {/* Family 2 — Historical */}
+        <div className="rounded-btn bg-paper p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-label text-[#8A6D00]">② Historical Performance</p>
+            <span className="text-xs font-bold text-[#8A6D00]">{pastScore}/100</span>
+          </div>
+          {PAIRWISE_HISTORY.slice(0, 3).map((e) => (
+            <div key={e.show} className="mt-1 flex items-center gap-2">
+              <span className="w-20 shrink-0 truncate text-[10px] text-muted">{e.show}</span>
+              <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-line">
+                <div
+                  className={cn('absolute inset-y-0 left-0 rounded-full', e.pts >= 75 ? 'bg-signal-good' : e.pts >= 50 ? 'bg-signal-maybe' : 'bg-signal-no/40')}
+                  style={{ width: `${e.pts}%` }}
+                />
+              </div>
+              <span className="w-6 text-right text-[10px] font-semibold text-muted">{e.pts}</span>
+            </div>
+          ))}
+          <p className="mt-1.5 text-[10px] text-muted">+{PAIRWISE_HISTORY.length - 3} more · avg {pastScore}</p>
+        </div>
+
+        {/* Combined */}
+        <div className="flex items-center justify-between rounded-btn bg-ink px-3 py-2">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-label text-white/60">LIC Score</p>
+            <p className="font-mono text-[10px] text-white/40">({ratingScore}×50%) + ({pastScore}×50%)</p>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-xl font-bold text-gold">{licScore}</span>
+            <span className="text-[10px] text-white/40">/100</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function PairwiseModal({
   candidateA,
@@ -1933,8 +2260,8 @@ function PairwiseModal({
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-ink/70 p-6" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex w-full max-w-4xl flex-col gap-4 rounded-card bg-card p-6 shadow-card-hover"
-        style={{ maxHeight: '90vh', overflowY: 'auto' }}
+        className="flex w-full max-w-5xl flex-col gap-4 rounded-card bg-card p-6 shadow-card-hover"
+        style={{ maxHeight: '92vh', overflowY: 'auto' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1949,67 +2276,8 @@ function PairwiseModal({
 
         {/* Side by side */}
         <div className="grid grid-cols-2 gap-5">
-          {[
-            { candidate: candidateA, values: SCENE_VALUES_A, label: 'A' },
-            { candidate: candidateB, values: SCENE_VALUES_B, label: 'B' },
-          ].map(({ candidate, values, label }) => (
-            <div key={candidate.id} className="flex flex-col gap-3 rounded-btn border border-line p-4">
-              {/* Identity */}
-              <div className="flex items-center gap-3">
-                <div className="relative shrink-0">
-                  {candidate.avatar ? (
-                    <img src={asset(candidate.avatar)} alt={candidate.name} className="h-14 w-14 rounded-full object-cover ring-2 ring-purple-400" />
-                  ) : (
-                    <Avatar name={candidate.name} size="lg" />
-                  )}
-                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-purple-500 text-[10px] font-bold text-white">
-                    {label}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate font-bold text-ink">{candidate.name}</p>
-                  <p className="text-xs text-muted">{candidate.age} y/o · {candidate.city}</p>
-                  <p className="text-sm font-bold text-link">{candidateScore(candidate)}</p>
-                </div>
-              </div>
-
-              {/* Status */}
-              <Tag tone={candidate.status === 'cast' || candidate.status === 'offer' ? 'good' : candidate.status === 'new' ? 'neutral' : 'link'}>
-                {BOARD_COLUMN_LABELS[candidate.status]}
-              </Tag>
-
-              {/* Compact video player */}
-              <div className="overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '16/9' }}>
-                {candidate.video ? (
-                  <video
-                    src={asset(candidate.video)}
-                    controls
-                    playsInline
-                    preload="metadata"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <Play className="h-8 w-8 text-white/30" />
-                  </div>
-                )}
-              </div>
-
-              {/* Scene analysis */}
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[11px] font-semibold uppercase tracking-label text-muted">Scene analysis</p>
-                {SCENE_LABELS.map((lbl, i) => (
-                  <div key={lbl} className="flex items-center gap-2">
-                    <span className="w-28 truncate text-[11px] text-muted">{lbl}</span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
-                      <div className="h-full rounded-full bg-purple-400 transition-all" style={{ width: `${values[i]}%` }} />
-                    </div>
-                    <span className="w-6 text-right text-[11px] font-semibold text-ink">{values[i]}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          <CandidateScoreCard candidate={candidateA} label="A" />
+          <CandidateScoreCard candidate={candidateB} label="B" />
         </div>
 
         {/* Footer */}

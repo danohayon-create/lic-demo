@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft, ChevronRight, X, Check, HelpCircle, Pin, PhoneCall,
-  LayoutGrid, Plus, Send, Star, Sparkles, History, TrendingUp, Pencil, Info,
+  LayoutGrid, Plus, Send, Star, Sparkles, History, TrendingUp, Info,
 } from 'lucide-react'
 import { Card, Avatar, Button, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
@@ -13,7 +13,6 @@ import {
   moveCandidate,
   rateCandidate,
   candidateScore,
-  candidateAverageRating,
   deriveTeamRatings,
   type Candidate,
 } from '@/data/selection'
@@ -36,6 +35,29 @@ const SCENE_AXES = [
   'Authenticity', 'Charisma', 'Originality', 'Watchability', 'Camera presence',
 ]
 
+/** Deterministic historical performance score (0-100) from past castings, seeded by candidate id. */
+function historicalScore(c: Candidate): number {
+  const seed = c.id.split('').reduce((a, ch) => a + ch.charCodeAt(0), 0)
+  return 40 + (seed * 13) % 45
+}
+
+/** Compute LIC score from two families: current casting (50%) + historical (50%). */
+function computeLicScore(
+  candidate: Candidate,
+  positiveAxes: number,
+  ratedAxes: number,
+): { ratingScore: number; sceneScore: number; currentScore: number; pastScore: number; licScore: number; sceneRated: boolean } {
+  const ratingScore = candidateScore(candidate)
+  const sceneRated = ratedAxes > 0
+  const sceneScore = sceneRated ? Math.round((positiveAxes / SCENE_AXES.length) * 100) : 0
+  const currentScore = sceneRated
+    ? Math.round(ratingScore * 0.6 + sceneScore * 0.4)
+    : ratingScore
+  const pastScore = historicalScore(candidate)
+  const licScore = Math.round(currentScore * 0.5 + pastScore * 0.5)
+  return { ratingScore, sceneScore, currentScore, pastScore, licScore, sceneRated }
+}
+
 export function RoleReview({ projectId, roleId }: { projectId: string; roleId: string }) {
   const navigate = useNavigate()
   const toast = useToast()
@@ -54,6 +76,12 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
 
   const go = (dir: 1 | -1) => setIdx((i) => (i + dir + candidates.length) % candidates.length)
 
+  // Scene toggles lifted here so the banner and modal can access them
+  const [sceneToggles, setSceneToggles] = useState<Record<string, boolean | null>>(
+    () => Object.fromEntries(SCENE_AXES.map((a) => [a, null]))
+  )
+  const [showScoreModal, setShowScoreModal] = useState(false)
+
   if (!candidate) {
     return (
       <div className="flex flex-col gap-4">
@@ -67,7 +95,9 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
     )
   }
 
-  const score = candidateScore(candidate)
+  const positiveAxes = Object.values(sceneToggles).filter((v) => v === true).length
+  const ratedAxes = Object.values(sceneToggles).filter((v) => v !== null).length
+  const scores = computeLicScore(candidate, positiveAxes, ratedAxes)
   const reviewed = candidate.good + candidate.maybe + candidate.no > 0
 
   return (
@@ -102,12 +132,21 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
         <div className="flex items-center gap-3">
           <Avatar src={candidate.avatar} name={candidate.name} size="lg" />
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-2xl font-bold tracking-tight flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="text-link">{candidate.name}</span>{' '}
-              <span className="text-muted">as</span> <span className="text-signal-no">{role.name}</span>
-              <Tag tone="gold" className="ml-3 align-middle font-semibold" icon={<span>⚡</span>}>
-                {score} LIC score
-              </Tag>
+              <span className="text-muted">as</span>{' '}
+              <span className="text-signal-no">{role.name}</span>
+              <span className="flex items-center gap-1.5">
+                <Tag tone="gold" className="font-semibold" icon={<span>⚡</span>}>
+                  {scores.licScore} LIC score
+                </Tag>
+                <button
+                  onClick={() => setShowScoreModal(true)}
+                  className="flex h-6 items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2 text-[11px] font-semibold text-[#8A6D00] hover:bg-gold/20 transition-colors"
+                >
+                  How? <Info className="h-3 w-3" />
+                </button>
+              </span>
             </h1>
             <p className="mt-1 text-sm text-muted">
               {candidate.age} y/o · {candidate.city} · {candidates.length} candidates for this role
@@ -137,8 +176,18 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
         </div>
       </Card>
 
+      {/* Score breakdown modal */}
+      {showScoreModal && (
+        <ScoreBreakdownModal
+          candidate={candidate}
+          scores={scores}
+          sceneToggles={sceneToggles}
+          onClose={() => setShowScoreModal(false)}
+        />
+      )}
+
       {/* Let it Cast Intelligence — full width, above player */}
-      <LICIntelligenceCard candidate={candidate} totalCandidates={candidates.length} />
+      <LICIntelligenceCard candidate={candidate} totalCandidates={candidates.length} licScore={scores.licScore} />
 
       {/* player + decision */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -149,7 +198,171 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
           <CastingHistoryCard />
         </div>
         {/* right column */}
-        <RoleDecisionPanel key={candidate.id} candidate={candidate} reviewed={reviewed} />
+        <RoleDecisionPanel
+          key={candidate.id}
+          candidate={candidate}
+          reviewed={reviewed}
+          sceneToggles={sceneToggles}
+          setSceneToggles={setSceneToggles}
+        />
+      </div>
+    </div>
+  )
+}
+
+/* ── Score breakdown modal ──────────────────────────────────────────────────── */
+
+function ScoreBreakdownModal({
+  candidate,
+  scores,
+  sceneToggles,
+  onClose,
+}: {
+  candidate: Candidate
+  scores: ReturnType<typeof computeLicScore>
+  sceneToggles: Record<string, boolean | null>
+  onClose: () => void
+}) {
+  const { ratingScore, sceneScore, currentScore, pastScore, licScore, sceneRated } = scores
+  const positiveAxes = Object.values(sceneToggles).filter((v) => v === true).length
+
+  const historyEntries = [
+    { show: 'MAFS AU',         result: 'Cast',        pts: 100 },
+    { show: "I'm a Celebrity", result: 'Cast',        pts: 100 },
+    { show: 'Survivor AU',     result: 'Callback',    pts: 75  },
+    { show: 'The Bachelor AU', result: 'Callback',    pts: 75  },
+    { show: 'Big Brother AU',  result: 'Shortlisted', pts: 50  },
+    { show: 'MasterChef AU',   result: 'Shortlisted', pts: 50  },
+    { show: 'The Block',       result: 'No go',       pts:  0  },
+    { show: 'Love Island AU',  result: 'No go',       pts:  0  },
+  ]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-xl bg-card shadow-2xl ring-1 ring-line"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* header */}
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">⚡</span>
+            <div>
+              <p className="text-sm font-bold text-ink">Performance Score Breakdown</p>
+              <p className="text-xs text-muted">{candidate.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-paper hover:text-ink">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4 p-5">
+
+          {/* Formula intro */}
+          <p className="text-xs text-muted leading-relaxed">
+            The LIC score is a composite of two equally weighted families: the <strong className="text-ink">current casting evaluation</strong> and the candidate's <strong className="text-ink">historical performance</strong> across past productions.
+          </p>
+
+          {/* Family 1 — Current Casting */}
+          <div className="rounded-xl border border-line bg-paper p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-label text-link">① Current Casting</p>
+                <p className="text-[11px] text-muted">Weight: 50% of LIC score</p>
+              </div>
+              <span className="rounded-btn bg-link/10 px-2.5 py-1 text-sm font-bold text-link">{currentScore}/100</span>
+            </div>
+
+            {/* Rating sub-row */}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-28 shrink-0 text-[11px] text-muted">Team rating <span className="text-[10px]">×60%</span></span>
+              <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-line">
+                <div className="absolute inset-y-0 left-0 rounded-full bg-signal-good transition-all" style={{ width: `${ratingScore}%` }} />
+              </div>
+              <span className="w-8 text-right text-xs font-semibold text-ink">{ratingScore}</span>
+            </div>
+
+            {/* Scene analysis sub-row */}
+            <div className="flex items-center gap-2">
+              <span className="w-28 shrink-0 text-[11px] text-muted">Scene analysis <span className="text-[10px]">×40%</span></span>
+              <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-line">
+                <div
+                  className={cn('absolute inset-y-0 left-0 rounded-full transition-all', sceneRated ? 'bg-gold' : 'bg-line/50')}
+                  style={{ width: sceneRated ? `${sceneScore}%` : '0%' }}
+                />
+              </div>
+              <span className="w-8 text-right text-xs font-semibold text-ink">
+                {sceneRated ? sceneScore : <span className="text-muted">—</span>}
+              </span>
+            </div>
+
+            {!sceneRated && (
+              <p className="mt-2 text-[11px] text-muted italic">
+                Complete Scene Analysis axes to include this factor.
+              </p>
+            )}
+            {sceneRated && (
+              <p className="mt-2 text-[11px] text-muted">
+                {positiveAxes}/{SCENE_AXES.length} axes rated positive
+              </p>
+            )}
+
+            {/* Formula */}
+            <div className="mt-3 rounded-btn bg-link/5 px-3 py-1.5 text-[11px] font-mono text-link">
+              {sceneRated
+                ? `(${ratingScore} × 60%) + (${sceneScore} × 40%) = ${currentScore}`
+                : `${ratingScore} × 100% = ${currentScore} (scene not yet rated)`}
+            </div>
+          </div>
+
+          {/* Family 2 — Historical Performance */}
+          <div className="rounded-xl border border-line bg-paper p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-label text-[#8A6D00]">② Historical Performance</p>
+                <p className="text-[11px] text-muted">Weight: 50% of LIC score</p>
+              </div>
+              <span className="rounded-btn bg-gold/15 px-2.5 py-1 text-sm font-bold text-[#8A6D00]">{pastScore}/100</span>
+            </div>
+
+            {/* Mini history */}
+            <div className="mb-3 flex flex-col gap-1">
+              {historyEntries.slice(0, 4).map((e) => (
+                <div key={e.show} className="flex items-center gap-2">
+                  <span className="w-32 shrink-0 truncate text-[11px] text-ink">{e.show}</span>
+                  <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-line">
+                    <div
+                      className={cn('absolute inset-y-0 left-0 rounded-full', e.pts >= 75 ? 'bg-signal-good' : e.pts >= 50 ? 'bg-signal-maybe' : 'bg-signal-no/40')}
+                      style={{ width: `${e.pts}%` }}
+                    />
+                  </div>
+                  <span className="w-8 text-right text-[11px] font-semibold text-muted">{e.pts}</span>
+                </div>
+              ))}
+              <p className="text-[11px] text-muted mt-0.5">+{historyEntries.length - 4} more productions · weighted average</p>
+            </div>
+
+            <div className="rounded-btn bg-gold/5 px-3 py-1.5 text-[11px] font-mono text-[#8A6D00]">
+              Historical average = {pastScore}
+            </div>
+          </div>
+
+          {/* Combined */}
+          <div className="flex items-center justify-between rounded-xl bg-ink px-5 py-3.5">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-label text-white/60">LIC Score (combined)</p>
+              <p className="text-[11px] font-mono text-white/50 mt-0.5">
+                ({currentScore} × 50%) + ({pastScore} × 50%)
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-3xl font-bold text-gold">{licScore}</span>
+              <span className="text-sm text-white/50">/100</span>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
   )
@@ -183,20 +396,18 @@ function InfoTooltip({ text }: { text: string }) {
 
 /* ── Let it Cast Intelligence (full-width) ─────────────────────────────────── */
 
-function LICIntelligenceCard({ candidate, totalCandidates }: { candidate: Candidate; totalCandidates: number }) {
-  const score = candidateScore(candidate)
-  const rank = Math.max(1, Math.round((100 - score) / 100 * totalCandidates * 0.8))
+function LICIntelligenceCard({ totalCandidates, licScore }: { candidate?: Candidate; totalCandidates: number; licScore: number }) {
+  const rank = Math.max(1, Math.round((100 - licScore) / 100 * totalCandidates * 0.8))
   const topPct = Math.round((rank / totalCandidates) * 100)
 
-  const whyTags = score >= 75
+  const whyTags = licScore >= 75
     ? ['High watchability', 'Strong charisma', 'Rare profile']
-    : score >= 50
+    : licScore >= 50
     ? ['Potential match', 'Needs more review', 'Mid-range profile']
     : ['Low score', 'Needs more data']
 
   return (
     <Card className="flex flex-col gap-3">
-      {/* header — full width */}
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 shrink-0 text-link" />
         <span className="tech-label text-link">Let it Cast Intelligence</span>
@@ -207,9 +418,7 @@ function LICIntelligenceCard({ candidate, totalCandidates }: { candidate: Candid
         The model improves continuously as your team rates more auditions.
       </p>
 
-      {/* content — 3 columns */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {/* predicted rank */}
         <div className="flex items-center gap-3 rounded-btn bg-link/5 px-3 py-2.5">
           <TrendingUp className="h-5 w-5 shrink-0 text-link" />
           <div className="min-w-0">
@@ -223,7 +432,6 @@ function LICIntelligenceCard({ candidate, totalCandidates }: { candidate: Candid
           </div>
         </div>
 
-        {/* why surfaced */}
         <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-label text-muted">Why surfaced</p>
           <div className="flex flex-wrap gap-1.5">
@@ -235,7 +443,6 @@ function LICIntelligenceCard({ candidate, totalCandidates }: { candidate: Candid
           </div>
         </div>
 
-        {/* similar talent */}
         <div>
           <div className="mb-1.5 flex items-center gap-1">
             <p className="text-[11px] font-semibold uppercase tracking-label text-muted">Similar Talent</p>
@@ -266,18 +473,25 @@ function LICIntelligenceCard({ candidate, totalCandidates }: { candidate: Candid
 /* ── Casting history (left column) ─────────────────────────────────────────── */
 
 function CastingHistoryCard() {
+  const entries = [
+    { show: 'MAFS AU',         season: 'S8',  role: 'Participant',   result: 'Cast',        color: 'text-signal-good bg-signal-good-bg' },
+    { show: "I'm a Celebrity", season: 'S4',  role: 'Celebrity',     result: 'Cast',        color: 'text-signal-good bg-signal-good-bg' },
+    { show: 'Survivor AU',     season: 'S12', role: 'Contestant',    result: 'Callback',    color: 'text-[#8A6D00] bg-signal-maybe/10' },
+    { show: 'The Bachelor AU', season: 'S10', role: 'Contestant',    result: 'Callback',    color: 'text-[#8A6D00] bg-signal-maybe/10' },
+    { show: 'Big Brother AU',  season: 'S14', role: 'Housemate',     result: 'Shortlisted', color: 'text-[#8A6D00] bg-signal-maybe/10' },
+    { show: 'MasterChef AU',   season: 'S15', role: 'Home Cook',     result: 'Shortlisted', color: 'text-[#8A6D00] bg-signal-maybe/10' },
+    { show: 'The Block',       season: 'S19', role: 'Contestant',    result: 'No go',       color: 'text-signal-no bg-signal-no/8' },
+    { show: 'Love Island AU',  season: 'S2',  role: 'Islander',      result: 'No go',       color: 'text-signal-no bg-signal-no/8' },
+  ]
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <History className="h-3.5 w-3.5 text-muted" />
         <span className="tech-label">Casting history</span>
+        <span className="ml-auto text-[11px] text-muted">{entries.length} productions</span>
       </div>
-      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {[
-          { show: 'Survivor AU', season: 'S12', role: 'Contestant', result: 'Callback', color: 'text-signal-good bg-signal-good-bg' },
-          { show: 'MasterChef AU', season: 'S15', role: 'Home Cook', result: 'Shortlisted', color: 'text-[#8A6D00] bg-signal-maybe/10' },
-          { show: 'The Block', season: 'S19', role: 'Contestant', result: 'No go', color: 'text-signal-no bg-signal-no/8' },
-        ].map((entry) => (
+      <ul className="flex max-h-52 flex-col gap-1.5 overflow-y-auto pr-1">
+        {entries.map((entry) => (
           <li key={entry.show + entry.season} className="flex items-center justify-between gap-2 rounded-btn bg-paper px-3 py-2">
             <div className="min-w-0">
               <p className="truncate text-xs font-semibold text-ink">{entry.show} <span className="text-muted">· {entry.season}</span></p>
@@ -293,7 +507,7 @@ function CastingHistoryCard() {
   )
 }
 
-/* ── Direct feedback inline (used inside RoleDecisionPanel) ─────────────────── */
+/* ── Direct feedback inline ─────────────────────────────────────────────────── */
 
 function DirectFeedbackInline() {
   const toast = useToast()
@@ -315,7 +529,7 @@ function DirectFeedbackInline() {
         className="h-10 flex-1 rounded-btn border border-line bg-paper px-3 text-sm text-ink focus:border-ink/20 focus:outline-none focus:ring-2 focus:ring-ink/10"
       />
       <button
-        onClick={() => { if (!note.trim()) return; setSent(true); toast('Feedback sent to actor') }}
+        onClick={() => { if (!note.trim()) return; setSent(true); toast('Feedback sent to talent') }}
         className="flex h-10 w-10 items-center justify-center rounded-btn bg-ink text-white hover:bg-ink/90 disabled:opacity-40"
         disabled={!note.trim()}
       >
@@ -325,35 +539,42 @@ function DirectFeedbackInline() {
   )
 }
 
-/* ── Right column: Your Rating · Other Ratings · Scene Analysis ─────────────── */
+/* ── Right column: Your Rating · Scene Analysis · Other Ratings · Feedback ───── */
 
-function RoleDecisionPanel({ candidate, reviewed }: { candidate: Candidate; reviewed: boolean }) {
+function RoleDecisionPanel({
+  candidate,
+  reviewed,
+  sceneToggles,
+  setSceneToggles,
+}: {
+  candidate: Candidate
+  reviewed: boolean
+  sceneToggles: Record<string, boolean | null>
+  setSceneToggles: React.Dispatch<React.SetStateAction<Record<string, boolean | null>>>
+}) {
   const toast = useToast()
   const { id: candidateId, good, maybe, no } = candidate
   const tally: Record<'good' | 'maybe' | 'no', number> = { good, maybe, no }
   const [lastVote, setLastVote] = useState<'good' | 'maybe' | 'no' | null>(null)
-  const [stars, setStars] = useState(Math.round(candidateAverageRating(candidate)))
 
   const teamRatings = deriveTeamRatings(candidate)
 
-  // Scene Analysis — 5 axes with edit mode
-  const score = candidateScore(candidate)
-  const baseValues = [
-    Math.min(100, score + 8),
-    Math.min(100, score + 2),
-    Math.max(0, score - 6),
-    Math.min(100, score + 11),
-    Math.max(0, score - 12),
-  ]
-  const [editingMetrics, setEditingMetrics] = useState(false)
-  const [metrics, setMetrics] = useState(
-    SCENE_AXES.map((label, i) => ({ label, value: baseValues[i] }))
-  )
+  const toggleAxis = (axis: string) => {
+    setSceneToggles((prev) => {
+      const current = prev[axis]
+      const next = current === null ? true : current === true ? false : null
+      return { ...prev, [axis]: next }
+    })
+  }
+
+  const positiveCount = Object.values(sceneToggles).filter((v) => v === true).length
+  const ratedCount = Object.values(sceneToggles).filter((v) => v !== null).length
+  const sceneStars = ratedCount === 0 ? 0 : Math.round((positiveCount / SCENE_AXES.length) * 5)
 
   return (
     <div className="flex flex-col gap-4">
 
-      {/* Your rating */}
+      {/* ① Your rating */}
       <Card className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <span className="tech-label">Your rating</span>
@@ -378,19 +599,57 @@ function RoleDecisionPanel({ candidate, reviewed }: { candidate: Candidate; revi
             )
           })}
         </div>
-        <div className="flex items-center gap-2 border-t border-line pt-3">
-          <div className="flex gap-0.5">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} onClick={() => setStars(n)} aria-label={`${n} stars`}>
-                <Star className={cn('h-5 w-5', n <= stars ? 'fill-gold text-gold' : 'text-line')} />
-              </button>
-            ))}
+      </Card>
+
+      {/* ② Scene Analysis */}
+      <Card className="flex flex-col gap-3">
+        <div className="flex items-center gap-1.5">
+          <span className="tech-label">Scene Analysis</span>
+          <InfoTooltip text="For each axis below, optionally indicate whether the talent demonstrates this quality. Click once to mark Yes (green), again for No (red), again to clear. Stars update automatically and feed into the LIC score." />
+        </div>
+        <ul className="flex flex-col gap-2">
+          {SCENE_AXES.map((axis) => {
+            const val = sceneToggles[axis]
+            return (
+              <li key={axis} className="flex items-center justify-between gap-3">
+                <span className="text-sm text-ink">{axis}</span>
+                <button
+                  onClick={() => toggleAxis(axis)}
+                  className={cn(
+                    'flex h-7 min-w-[52px] items-center justify-center rounded-full border text-xs font-bold transition-all',
+                    val === true
+                      ? 'border-signal-good bg-signal-good-bg text-signal-good'
+                      : val === false
+                      ? 'border-signal-no/40 bg-signal-no/8 text-signal-no'
+                      : 'border-line bg-paper text-muted hover:border-ink/30',
+                  )}
+                >
+                  {val === true ? 'Yes' : val === false ? 'No' : '—'}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+
+        {/* Auto stars */}
+        <div className="flex items-center justify-between border-t border-line pt-3">
+          <div className="flex items-center gap-1.5">
+            <div className="flex gap-0.5">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Star key={n} className={cn('h-4 w-4', n <= sceneStars ? 'fill-gold text-gold' : 'text-line')} />
+              ))}
+            </div>
+            <span className="text-xs font-semibold text-ink">
+              {ratedCount === 0 ? '—' : `${sceneStars}/5`}
+            </span>
           </div>
-          <span className="text-sm font-semibold text-ink">{stars.toFixed(1)}/5</span>
+          <span className="text-[11px] text-muted">
+            {ratedCount === 0 ? 'Rate axes to generate a scene score' : `${positiveCount}/${SCENE_AXES.length} axes positive`}
+          </span>
         </div>
       </Card>
 
-      {/* Other ratings */}
+      {/* ③ Other ratings */}
       <Card className="flex flex-col gap-3">
         <span className="tech-label">Other ratings</span>
         <div className="flex items-center gap-2">
@@ -419,57 +678,13 @@ function RoleDecisionPanel({ candidate, reviewed }: { candidate: Candidate; revi
         </span>
       </Card>
 
-      {/* Direct feedback */}
+      {/* ④ Direct feedback */}
       <Card className="flex flex-col gap-3">
         <div>
-          <span className="tech-label">Direct feedback to actor</span>
-          <p className="text-xs text-muted">Sent privately to the actor</p>
+          <span className="tech-label">Direct feedback to talent</span>
+          <p className="text-xs text-muted">Send private feedback to the talent</p>
         </div>
         <DirectFeedbackInline />
-      </Card>
-
-      {/* Scene Analysis */}
-      <Card className="flex flex-col gap-3">
-        <div className="flex items-start justify-between">
-          <div>
-            <span className="tech-label">Scene Analysis</span>
-            <p className="text-xs text-muted">
-              {editingMetrics ? 'Adjust the scores below' : 'AI-proposed · you can override'}
-            </p>
-          </div>
-          <button
-            onClick={() => setEditingMetrics((v) => !v)}
-            title={editingMetrics ? 'Done editing' : 'Edit scores'}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-line text-muted transition-colors hover:border-ink/30 hover:text-ink"
-          >
-            {editingMetrics ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-        <ul className="flex flex-col gap-3">
-          {metrics.map((m, i) => (
-            <li key={m.label} className="flex flex-col gap-1">
-              <div className="flex justify-between text-sm">
-                <span className="text-ink">{m.label}</span>
-                <span className="font-semibold text-ink">{m.value}</span>
-              </div>
-              {editingMetrics ? (
-                <input
-                  type="range" min={0} max={100} value={m.value}
-                  onChange={(e) => {
-                    const next = [...metrics]
-                    next[i] = { ...next[i], value: Number(e.target.value) }
-                    setMetrics(next)
-                  }}
-                  className="h-1.5 w-full cursor-pointer accent-ink"
-                />
-              ) : (
-                <span className="h-1.5 w-full overflow-hidden rounded-full bg-line">
-                  <span className="block h-full rounded-full bg-ink/70 transition-all duration-300" style={{ width: `${m.value}%` }} />
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
       </Card>
 
     </div>

@@ -139,13 +139,13 @@ export const projects: Project[] = [
     submissions: 7420,
     format: 'non_scripted',
     kpis: {
-      roles: { total: 18, lead: 0, supporting: 0 },
+      roles: { total: 7, lead: 0, supporting: 0 },
       submissions: { total: 7420, today: 310 },
       shortlist: { total: 64, readyForCallback: 16 },
       callbacks: { total: 5, next: 'Aug 28' },
       booked: 14,
     },
-    roleIds: ['survivor-new-castaways', 'survivor-returning-legends', 'survivor-host-standin'],
+    roleIds: ['survivor-new-castaways', 'survivor-returning-legends', 'survivor-host-standin', 'survivor-c04', 'survivor-c05', 'survivor-c06', 'survivor-c07'],
   },
   {
     id: 'masterchef-australia',
@@ -562,7 +562,7 @@ export const roles: Role[] = [
   {
     id: 'survivor-new-castaways',
     projectId: 'survivor-australia',
-    name: 'Contestant 1 — New Players',
+    name: 'Casting Team 1 — New Players',
     type: 'Contestant',
     submissions: 6800,
     shortlist: 52,
@@ -576,7 +576,7 @@ export const roles: Role[] = [
   {
     id: 'survivor-returning-legends',
     projectId: 'survivor-australia',
-    name: 'Contestant 2 — Returning Legends',
+    name: 'Casting Team 2 — Returning Legends',
     type: 'Contestant',
     submissions: 540,
     shortlist: 9,
@@ -586,19 +586,23 @@ export const roles: Role[] = [
   {
     id: 'survivor-host-standin',
     projectId: 'survivor-australia',
-    name: 'Contestant 3 — Wildcard',
+    name: 'Casting Team 3 — Wildcard',
     type: 'Contestant',
-    submissions: 80,
-    shortlist: 3,
-    status: 'Open',
-    deadline: 'Sep 05',
+    submissions: 320,
+    shortlist: 8,
+    status: 'Reviewing',
+    deadline: 'Aug 22',
   },
+  { id: 'survivor-c04', projectId: 'survivor-australia', name: 'Casting Team 4 — Superfan',  type: 'Contestant', submissions: 490, shortlist: 11, status: 'Reviewing', deadline: 'Aug 22', pay: '$1,200/week', location: 'Fiji Islands', auditionFlow: 'Open Call', castingNotes: 'Die-hard fans of the show who know the game inside out and bring a fresh strategic angle.' },
+  { id: 'survivor-c05', projectId: 'survivor-australia', name: 'Casting Team 5 — Athlete',    type: 'Contestant', submissions: 410, shortlist: 9,  status: 'Reviewing', deadline: 'Aug 22', pay: '$1,200/week', location: 'Fiji Islands', auditionFlow: 'Open Call', castingNotes: 'Physically elite competitors who can dominate challenges and still play a social game.' },
+  { id: 'survivor-c06', projectId: 'survivor-australia', name: 'Casting Team 6 — Underdog',   type: 'Contestant', submissions: 380, shortlist: 7,  status: 'Callbacks', deadline: 'Aug 28', pay: '$1,200/week', location: 'Fiji Islands', auditionFlow: 'Open Call', castingNotes: 'Underdogs and emotional storytellers who audiences will root for despite the odds.' },
+  { id: 'survivor-c07', projectId: 'survivor-australia', name: 'Casting Team 7 — Strategist', type: 'Contestant', submissions: 520, shortlist: 14, status: 'Callbacks', deadline: 'Aug 28', pay: '$1,200/week', location: 'Fiji Islands', auditionFlow: 'Open Call', castingNotes: 'Cold, calculated players who can read people and execute complex long-game plans.' },
 
   // ── MasterChef Australia ─────────────────────────────────────────────────
   {
     id: 'masterchef-home-cooks',
     projectId: 'masterchef-australia',
-    name: 'Contestant 1 — Home Cooks',
+    name: 'Casting Team 1 — Home Cooks',
     type: 'Contestant',
     submissions: 4900,
     shortlist: 40,
@@ -612,7 +616,7 @@ export const roles: Role[] = [
   {
     id: 'masterchef-junior',
     projectId: 'masterchef-australia',
-    name: 'Contestant 2 — Junior Edition (12–16y)',
+    name: 'Casting Team 2 — Junior Edition (12–16y)',
     type: 'Contestant',
     submissions: 220,
     shortlist: 6,
@@ -622,7 +626,7 @@ export const roles: Role[] = [
   {
     id: 'masterchef-guest-mentors',
     projectId: 'masterchef-australia',
-    name: 'Contestant 3 — Guest Mentors',
+    name: 'Casting Team 3 — Guest Mentors',
     type: 'Contestant',
     submissions: 60,
     shortlist: 2,
@@ -634,7 +638,7 @@ export const roles: Role[] = [
   {
     id: 'bb-housemates-general',
     projectId: 'big-brother-australia',
-    name: 'Contestant 1 — General Pool',
+    name: 'Casting Team 1 — General Pool',
     type: 'Contestant',
     submissions: 11500,
     shortlist: 58,
@@ -648,7 +652,7 @@ export const roles: Role[] = [
   {
     id: 'bb-housemates-wildcard',
     projectId: 'big-brother-australia',
-    name: 'Contestant 2 — Wildcard',
+    name: 'Casting Team 2 — Wildcard',
     type: 'Contestant',
     submissions: 720,
     shortlist: 10,
@@ -658,7 +662,7 @@ export const roles: Role[] = [
   {
     id: 'bb-celebrity-housemate',
     projectId: 'big-brother-australia',
-    name: 'Contestant 3 — Celebrity VIP',
+    name: 'Casting Team 3 — Celebrity VIP',
     type: 'Contestant',
     submissions: 80,
     shortlist: 2,
@@ -670,7 +674,7 @@ export const roles: Role[] = [
   {
     id: 'mafs-brides',
     projectId: 'mafs-australia',
-    name: 'Contestant 1 — Brides',
+    name: 'Casting Team 1 — Brides',
     type: 'Contestant',
     submissions: 2400,
     shortlist: 22,
@@ -683,7 +687,7 @@ export const roles: Role[] = [
   {
     id: 'mafs-grooms',
     projectId: 'mafs-australia',
-    name: 'Contestant 2 — Grooms',
+    name: 'Casting Team 2 — Grooms',
     type: 'Contestant',
     submissions: 1850,
     shortlist: 18,
@@ -693,7 +697,7 @@ export const roles: Role[] = [
   {
     id: 'mafs-relationship-experts',
     projectId: 'mafs-australia',
-    name: 'Contestant 3 — Expert Panel (Guest)',
+    name: 'Casting Team 3 — Expert Panel (Guest)',
     type: 'Contestant',
     submissions: 50,
     shortlist: 2,
@@ -702,16 +706,16 @@ export const roles: Role[] = [
   },
 
   // ── MasterChef Australia — Season 17 ────────────────────────────────────
-  { id: 'mc17-c01', projectId: 'masterchef-australia-s17', name: 'Contestant 1',  type: 'Contestant', submissions: 2500, shortlist: 12, status: 'Reviewing', deadline: 'Sep 15', pay: '$900/week', location: 'Melbourne', auditionFlow: 'Open Call', castingNotes: 'Passionate home cook with a unique personal story — we need someone who inspires the audience as much as they impress the judges.' },
-  { id: 'mc17-c02', projectId: 'masterchef-australia-s17', name: 'Contestant 2',  type: 'Contestant', submissions: 2200, shortlist: 10, status: 'Reviewing', deadline: 'Sep 15' },
-  { id: 'mc17-c03', projectId: 'masterchef-australia-s17', name: 'Contestant 3',  type: 'Contestant', submissions: 2100, shortlist: 8,  status: 'Reviewing', deadline: 'Sep 15' },
-  { id: 'mc17-c04', projectId: 'masterchef-australia-s17', name: 'Contestant 4',  type: 'Contestant', submissions: 2400, shortlist: 11, status: 'Callbacks', deadline: 'Sep 15' },
-  { id: 'mc17-c05', projectId: 'masterchef-australia-s17', name: 'Contestant 5',  type: 'Contestant', submissions: 2600, shortlist: 9,  status: 'Callbacks', deadline: 'Sep 15' },
-  { id: 'mc17-c06', projectId: 'masterchef-australia-s17', name: 'Contestant 6',  type: 'Contestant', submissions: 2300, shortlist: 7,  status: 'Callbacks', deadline: 'Sep 15' },
-  { id: 'mc17-c07', projectId: 'masterchef-australia-s17', name: 'Contestant 7',  type: 'Contestant', submissions: 2700, shortlist: 5,  status: 'Open',      deadline: 'Sep 15' },
-  { id: 'mc17-c08', projectId: 'masterchef-australia-s17', name: 'Contestant 8',  type: 'Contestant', submissions: 2900, shortlist: 4,  status: 'Open',      deadline: 'Sep 15' },
-  { id: 'mc17-c09', projectId: 'masterchef-australia-s17', name: 'Contestant 9',  type: 'Contestant', submissions: 2800, shortlist: 3,  status: 'Open',      deadline: 'Sep 15' },
-  { id: 'mc17-c10', projectId: 'masterchef-australia-s17', name: 'Contestant 10', type: 'Contestant', submissions: 2500, shortlist: 2,  status: 'Open',      deadline: 'Sep 15' },
+  { id: 'mc17-c01', projectId: 'masterchef-australia-s17', name: 'Casting Team 1',  type: 'Contestant', submissions: 2500, shortlist: 12, status: 'Reviewing', deadline: 'Sep 15', pay: '$900/week', location: 'Melbourne', auditionFlow: 'Open Call', castingNotes: 'Passionate home cook with a unique personal story — we need someone who inspires the audience as much as they impress the judges.' },
+  { id: 'mc17-c02', projectId: 'masterchef-australia-s17', name: 'Casting Team 2',  type: 'Contestant', submissions: 2200, shortlist: 10, status: 'Reviewing', deadline: 'Sep 15' },
+  { id: 'mc17-c03', projectId: 'masterchef-australia-s17', name: 'Casting Team 3',  type: 'Contestant', submissions: 2100, shortlist: 8,  status: 'Reviewing', deadline: 'Sep 15' },
+  { id: 'mc17-c04', projectId: 'masterchef-australia-s17', name: 'Casting Team 4',  type: 'Contestant', submissions: 2400, shortlist: 11, status: 'Callbacks', deadline: 'Sep 15' },
+  { id: 'mc17-c05', projectId: 'masterchef-australia-s17', name: 'Casting Team 5',  type: 'Contestant', submissions: 2600, shortlist: 9,  status: 'Callbacks', deadline: 'Sep 15' },
+  { id: 'mc17-c06', projectId: 'masterchef-australia-s17', name: 'Casting Team 6',  type: 'Contestant', submissions: 2300, shortlist: 7,  status: 'Callbacks', deadline: 'Sep 15' },
+  { id: 'mc17-c07', projectId: 'masterchef-australia-s17', name: 'Casting Team 7',  type: 'Contestant', submissions: 2700, shortlist: 5,  status: 'Open',      deadline: 'Sep 15' },
+  { id: 'mc17-c08', projectId: 'masterchef-australia-s17', name: 'Casting Team 8',  type: 'Contestant', submissions: 2900, shortlist: 4,  status: 'Open',      deadline: 'Sep 15' },
+  { id: 'mc17-c09', projectId: 'masterchef-australia-s17', name: 'Casting Team 9',  type: 'Contestant', submissions: 2800, shortlist: 3,  status: 'Open',      deadline: 'Sep 15' },
+  { id: 'mc17-c10', projectId: 'masterchef-australia-s17', name: 'Casting Team 10', type: 'Contestant', submissions: 2500, shortlist: 2,  status: 'Open',      deadline: 'Sep 15' },
 ]
 
 export const projectsById = Object.fromEntries(projects.map((p) => [p.id, p]))
@@ -721,7 +725,7 @@ export const rolesById = Object.fromEntries(roles.map((r) => [r.id, r]))
 export const rolesByProject = (projectId: string) => roles.filter((r) => r.projectId === projectId)
 
 /** Role-brief video shown on the casting-detail screen (talent app). */
-export const roleBriefVideo = '/media/selftape.mp4'
+export const roleBriefVideo = '/brief-project.mp4'
 
 /** Casting calls shown on the talent discovery surface (/app). */
 export const discoverCastings: DiscoverCasting[] = [
@@ -949,6 +953,23 @@ const mafsAustraliaSubmissions: SubmissionPoint[] = [
   { day: 'D14', submissions: 310 },
 ]
 
+const masterchefUsS17Submissions: SubmissionPoint[] = [
+  { day: 'D1',  submissions: 820  },
+  { day: 'D2',  submissions: 1140 },
+  { day: 'D3',  submissions: 1380 },
+  { day: 'D4',  submissions: 1650 },
+  { day: 'D5',  submissions: 2100 },
+  { day: 'D6',  submissions: 2480 },
+  { day: 'D7',  submissions: 1920 },
+  { day: 'D8',  submissions: 2750 },
+  { day: 'D9',  submissions: 3200 },
+  { day: 'D10', submissions: 3580 },
+  { day: 'D11', submissions: 3350 },
+  { day: 'D12', submissions: 3820 },
+  { day: 'D13', submissions: 4100 },
+  { day: 'D14', submissions: 4460 },
+]
+
 export const submissionsOverTimeByProject: Record<string, SubmissionPoint[]> = {
   evermore: evermoreSubmissions,
   'rive-droite': riveDroiteSubmissions,
@@ -958,6 +979,7 @@ export const submissionsOverTimeByProject: Record<string, SubmissionPoint[]> = {
   'masterchef-australia': masterchefAustraliaSubmissions,
   'big-brother-australia': bigBrotherAustraliaSubmissions,
   'mafs-australia': mafsAustraliaSubmissions,
+  'masterchef-australia-s17': masterchefUsS17Submissions,
 }
 
 // ── Per-project activity feeds ────────────────────────────────────────────────
@@ -1204,6 +1226,37 @@ const mafsAustraliaActivity: ActivityItem[] = [
   },
 ]
 
+const masterchefUsS17Activity: ActivityItem[] = [
+  {
+    id: 'mc-us-act-1',
+    actorInitials: 'ET',
+    actorName: 'Eden Tov',
+    action: 'shortlisted',
+    target: 'Isabella Chen',
+    tag: 'Shortlist',
+    time: '8m ago',
+  },
+  {
+    id: 'mc-us-act-2',
+    actorInitials: 'JC',
+    actorName: 'Julie Cohen',
+    action: 'rated',
+    target: 'Marcus Webb',
+    tag: 'Good match',
+    signal: 'good' as const,
+    time: '36m ago',
+  },
+  {
+    id: 'mc-us-act-3',
+    actorInitials: 'PK',
+    actorName: 'Peter Known',
+    action: 'left a note on',
+    target: 'Aroha Ngata',
+    tag: 'Note',
+    time: '1h ago',
+  },
+]
+
 export const activityByProject: Record<string, ActivityItem[]> = {
   evermore: evermoreActivity,
   'rive-droite': riveDroiteActivity,
@@ -1213,4 +1266,5 @@ export const activityByProject: Record<string, ActivityItem[]> = {
   'masterchef-australia': masterchefAustraliaActivity,
   'big-brother-australia': bigBrotherAustraliaActivity,
   'mafs-australia': mafsAustraliaActivity,
+  'masterchef-australia-s17': masterchefUsS17Activity,
 }

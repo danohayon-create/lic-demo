@@ -207,7 +207,9 @@ function PostCard({ post }: { post: FeedPost }) {
       )}
 
       {/* media */}
-      {post.video && (
+      {post.youtubeId ? (
+        <HomeFeedYouTubeEmbed videoId={post.youtubeId} title={post.youtubeTitle} />
+      ) : post.video ? (
         <div className="overflow-hidden rounded-btn border border-line bg-black">
           <video
             src={asset(post.video)}
@@ -220,12 +222,16 @@ function PostCard({ post }: { post: FeedPost }) {
             className="aspect-square w-full object-contain"
           />
         </div>
-      )}
-      {!post.video && post.image && (
-        <div className="overflow-hidden rounded-btn border border-line">
+      ) : post.image ? (
+        <div className="relative overflow-hidden rounded-btn border border-line">
           <img src={asset(post.image)} alt="" className="aspect-[16/9] w-full object-cover" />
+          {post.platform === 'instagram' && (
+            <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+              <span>📸</span> Instagram
+            </span>
+          )}
         </div>
-      )}
+      ) : null}
 
       {/* casting CTA */}
       {post.kind === 'casting' && (
@@ -233,7 +239,7 @@ function PostCard({ post }: { post: FeedPost }) {
           variant="secondary"
           className="self-start"
           iconRight={<ArrowUpRight className="h-4 w-4" />}
-          onClick={() => navigate('/studio/dashboard')}
+          onClick={() => navigate(post.castingUrl ?? '/studio/dashboard')}
         >
           View casting
         </Button>
@@ -261,6 +267,49 @@ function PostCard({ post }: { post: FeedPost }) {
         </button>
       </div>
     </Card>
+  )
+}
+
+/* ── YouTube embed ────────────────────────────────────────────────────────── */
+
+function HomeFeedYouTubeEmbed({ videoId, title }: { videoId: string; title?: string }) {
+  const [active, setActive] = useState(false)
+  const thumb = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+  return (
+    <div
+      className="relative w-full overflow-hidden rounded-btn border border-line bg-black"
+      style={{ aspectRatio: '16/9' }}
+    >
+      {active ? (
+        <iframe
+          src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`}
+          title={title ?? 'YouTube video'}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          className="absolute inset-0 h-full w-full"
+        />
+      ) : (
+        <>
+          <img src={thumb} alt={title} className="h-full w-full object-cover" />
+          <button
+            onClick={() => setActive(true)}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/30 hover:bg-black/40 transition-colors"
+          >
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-white shadow-lg hover:scale-105 transition-transform">
+              <Play className="ml-0.5 h-6 w-6 fill-white" />
+            </span>
+            {title && (
+              <span className="mx-8 line-clamp-2 text-center text-sm font-semibold text-white drop-shadow">
+                {title}
+              </span>
+            )}
+          </button>
+          <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-bold text-white">
+            <span className="text-red-500">▶</span> YouTube
+          </span>
+        </>
+      )}
+    </div>
   )
 }
 

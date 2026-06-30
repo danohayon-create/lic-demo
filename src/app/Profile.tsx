@@ -23,7 +23,7 @@ export function Profile() {
 
       {/* identity */}
       <div className="flex flex-col items-center text-center">
-        <Avatar name={p.name} size="xl" ring />
+        <Avatar src={p.avatar} name={p.name} size="xl" ring />
         <h1 className="mt-3 text-xl font-bold tracking-tight text-ink">{p.name}</h1>
         <p className="text-sm text-muted">
           {p.profession} · {p.city}

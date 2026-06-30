@@ -15,6 +15,8 @@ export interface SavedSearchFilters {
   query: string
   /** null = no filter; 'reviewed' = has at least one note; 'not_reviewed' = new, never rated */
   reviewStatus: 'reviewed' | 'not_reviewed' | null
+  /** Minimum scene score (1–5) derived from rating quality; null = no filter */
+  sceneStarsMin: number | null
 }
 
 export interface SavedSearch {
