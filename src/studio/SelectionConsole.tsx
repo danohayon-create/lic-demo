@@ -21,6 +21,7 @@ import {
   Lock,
   MapPin,
   Play,
+  RotateCcw,
   Search,
   Send,
   Sparkles,
@@ -38,6 +39,9 @@ import {
   useCandidatesForRoles,
   moveCandidate,
   rateCandidate,
+  resetCandidatesForDemo,
+  applyScenarioPreset,
+  isNewCandidate,
   candidateScore,
   candidateAverageRating,
   deriveTeamRatings,
@@ -87,6 +91,9 @@ const EMPTY_FILTERS: SavedSearchFilters = {
   query: '',
   reviewStatus: null,
   sceneStarsMin: null,
+  isNewCandidateFilter: null,
+  majoritySignal: null,
+  statusFilter: null,
 }
 
 function activeFilterCount(f: SavedSearchFilters): number {
@@ -101,7 +108,10 @@ function activeFilterCount(f: SavedSearchFilters): number {
     (f.scoreMin != null || f.scoreMax != null ? 1 : 0) +
     (f.query.trim() ? 1 : 0) +
     (f.reviewStatus != null ? 1 : 0) +
-    (f.sceneStarsMin != null ? 1 : 0)
+    (f.sceneStarsMin != null ? 1 : 0) +
+    (f.isNewCandidateFilter ? 1 : 0) +
+    (f.majoritySignal != null ? 1 : 0) +
+    (f.statusFilter != null ? 1 : 0)
   )
 }
 
@@ -164,6 +174,23 @@ export function SelectionConsole() {
       if (filters.reviewStatus === 'reviewed' && c.good === 0 && c.maybe === 0 && c.no === 0) return false
       if (filters.reviewStatus === 'not_reviewed' && c.status !== 'new') return false
       if (filters.sceneStarsMin != null && Math.round(candidateAverageRating(c)) < filters.sceneStarsMin) return false
+      if (filters.isNewCandidateFilter && !isNewCandidate(c.id)) return false
+      if (filters.statusFilter === 'remaining') {
+        if (!['shortlisted', 'callback', 'offer', 'cast'].includes(c.status)) return false
+      } else if (filters.statusFilter === 'finalized') {
+        if (!['offer', 'cast'].includes(c.status)) return false
+      } else if (filters.statusFilter === 'eliminated') {
+        if (c.status !== 'no-go') return false
+      } else if (filters.statusFilter) {
+        if (c.status !== filters.statusFilter) return false
+      }
+      if (filters.majoritySignal) {
+        const total = c.good + c.maybe + c.no
+        if (total === 0) return false
+        if (filters.majoritySignal === 'no' && !(c.no > c.good && c.no >= c.maybe)) return false
+        if (filters.majoritySignal === 'maybe' && !(c.maybe > c.good && c.maybe > c.no)) return false
+        if (filters.majoritySignal === 'good' && !(c.good >= c.maybe && c.good >= c.no)) return false
+      }
       if (filters.languages.length > 0 && !(c.languages ?? []).some((l) => filters.languages.includes(l)))
         return false
       if (q) {
@@ -199,8 +226,8 @@ export function SelectionConsole() {
   const [topTalentPct, setTopTalentPct] = useState(30)
   const [topTalentOpen, setTopTalentOpen] = useState(false)
 
-  // List column sort (score / status)
-  const [listSort, setListSort] = useState<{ col: 'score' | 'status'; dir: 'asc' | 'desc' } | null>(null)
+  // List column sort (score / status) — default: score desc
+  const [listSort, setListSort] = useState<{ col: 'score' | 'status'; dir: 'asc' | 'desc' } | null>({ col: 'score', dir: 'desc' })
 
   const toggleListSort = (col: 'score' | 'status') => {
     setListSort((cur) => {
@@ -363,6 +390,32 @@ export function SelectionConsole() {
             <h1 className="text-xl font-bold tracking-tight text-ink">{project.title}</h1>
           </div>
         </div>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<RotateCcw className="h-3.5 w-3.5" />}
+            onClick={() => {
+              resetCandidatesForDemo(allRoleIds)
+              toast('Demo reset — candidates returned to initial review state')
+            }}
+          >
+            Reset
+          </Button>
+          <span className="h-5 w-px bg-line" />
+          {([1, 2, 3] as const).map((step) => (
+            <button
+              key={step}
+              onClick={() => {
+                applyScenarioPreset(step, allRoleIds)
+                toast(`Demo → State S${step}`)
+              }}
+              className="flex h-7 items-center rounded-btn border border-line bg-paper px-2.5 text-[11px] font-bold text-muted hover:border-ink/30 hover:text-ink"
+            >
+              S{step}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Project summary */}
@@ -394,6 +447,16 @@ export function SelectionConsole() {
           <StatCell value={project.kpis?.booked ?? bookedCount} label="Booked" />
         </div>
       </Card>
+
+      {/* Selection Assistant */}
+      <SelectionAssistant
+        roleIds={allRoleIds}
+        onApplyFilters={(f, topTalent) => {
+          setFilters({ ...EMPTY_FILTERS, ...f })
+          setTopTalentActive(topTalent?.active ?? false)
+          if (topTalent?.pct != null) setTopTalentPct(topTalent.pct)
+        }}
+      />
 
       {/* Multi-criteria search */}
       <FilterBar
@@ -747,6 +810,134 @@ export function SelectionConsole() {
   )
 }
 
+/* ── Selection Assistant ──────────────────────────────────────────────────── */
+
+type StepId = 1 | 2 | 3
+
+type AssistantPlaylist = {
+  label: string
+  filters: Partial<SavedSearchFilters>
+  topTalent?: { active: boolean; pct?: number }
+}
+
+const ASSISTANT_STEPS: {
+  id: StepId
+  label: string
+  description: string
+  playlists: AssistantPlaylist[]
+}[] = [
+  {
+    id: 1,
+    label: 'Review',
+    description: 'Rate every candidate — Good, Maybe, or No go. Goal: empty the "To Review" column entirely before moving on.',
+    playlists: [
+      { label: 'All "To Review"', filters: { reviewStatus: 'not_reviewed' } },
+      { label: 'Top 30% not reviewed', filters: { reviewStatus: 'not_reviewed' }, topTalent: { active: true, pct: 30 } },
+      { label: '⭐ New candidates', filters: { reviewStatus: 'not_reviewed', isNewCandidateFilter: true } },
+    ],
+  },
+  {
+    id: 2,
+    label: 'Shortlist',
+    description: 'Sharpen your Shortlisted & Callback columns. Re-evaluate Maybes and No gos — keep only the strongest profiles.',
+    playlists: [
+      { label: 'All reviewed', filters: { reviewStatus: 'reviewed' } },
+      { label: 'All "No go"', filters: { majoritySignal: 'no' as Signal } },
+      { label: 'All "Maybe"', filters: { majoritySignal: 'maybe' as Signal } },
+      { label: 'Top reviewed (30%)', filters: { reviewStatus: 'reviewed' }, topTalent: { active: true, pct: 30 } },
+      { label: '⭐ New candidates reviewed', filters: { reviewStatus: 'reviewed', isNewCandidateFilter: true } },
+    ],
+  },
+  {
+    id: 3,
+    label: 'Finalize Casting',
+    description: 'Move your final picks to Offer or Cast. Review eliminated profiles in the No go column.',
+    playlists: [
+      { label: 'All remaining', filters: { statusFilter: 'finalized' } },
+      { label: 'Top 30% remaining', filters: { statusFilter: 'finalized' }, topTalent: { active: true, pct: 30 } },
+      { label: 'All eliminated', filters: { statusFilter: 'eliminated' } },
+    ],
+  },
+]
+
+function SelectionAssistant({
+  roleIds,
+  onApplyFilters,
+}: {
+  roleIds: string[]
+  onApplyFilters: (f: Partial<SavedSearchFilters>, topTalent: { active: boolean; pct?: number } | null) => void
+}) {
+  const toast = useToast()
+  const [activeStep, setActiveStep] = useState<StepId | null>(null)
+  const step = ASSISTANT_STEPS.find((s) => s.id === activeStep)
+
+  const handleApplyPreset = (id: StepId) => {
+    applyScenarioPreset(id, roleIds)
+    const labels: Record<StepId, string> = {
+      1: 'S1 — All candidates moved to Reviewed',
+      2: 'S2 — Shortlist & Callback applied',
+      3: 'S3 — 15 Offer · 5 Cast · rest eliminated',
+    }
+    toast(labels[id])
+  }
+
+  return (
+    <div className="rounded-card border border-line bg-paper">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <Wand2 className="h-4 w-4 text-link shrink-0" />
+        <span className="text-sm font-semibold text-ink">Selection Assistant</span>
+        <div className="flex items-center gap-1">
+          {ASSISTANT_STEPS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setActiveStep((cur) => cur === s.id ? null : s.id)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-btn px-3 py-1.5 text-xs font-semibold transition-colors',
+                activeStep === s.id
+                  ? 'bg-link text-white'
+                  : 'bg-card border border-line text-muted hover:text-ink hover:border-ink/30',
+              )}
+            >
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-current text-[9px] font-bold">
+                {s.id}
+              </span>
+              {s.label}
+            </button>
+          ))}
+        </div>
+        {step && (
+          <p className="ml-1 text-xs text-muted italic">{step.description}</p>
+        )}
+      </div>
+      {step && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3">
+          {/* Apply preset button */}
+          <button
+            onClick={() => handleApplyPreset(step.id)}
+            className="flex items-center gap-1.5 rounded-full bg-link px-3 py-1.5 text-xs font-semibold text-white hover:bg-link/90 transition-colors"
+            title={`Simulate S${step.id} state on the board`}
+          >
+            <CheckCheck className="h-3 w-3" />
+            Apply S{step.id} state
+          </button>
+          <span className="text-muted/40 text-xs">·</span>
+          {/* Playlist filter buttons */}
+          {step.playlists.map((p) => (
+            <button
+              key={p.label}
+              onClick={() => onApplyFilters(p.filters, p.topTalent ?? null)}
+              className="flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-1.5 text-xs font-medium text-muted hover:border-link/40 hover:bg-link/5 hover:text-link transition-colors"
+            >
+              <Play className="h-3 w-3" />
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── Filter bar ───────────────────────────────────────────────────────────── */
 
 function FilterBar({
@@ -794,6 +985,8 @@ function FilterBar({
             options={roles.map((r) => ({ value: r.id, label: r.name }))}
             selected={filters.roleIds}
             onToggle={(v) => toggleIn('roleIds', v)}
+            onSelectAll={() => onFilters({ ...filters, roleIds: roles.map((r) => r.id) })}
+            onClearAll={() => onFilters({ ...filters, roleIds: [] })}
           />
         </FilterDropdown>
 
@@ -883,6 +1076,8 @@ function FilterBar({
             options={team.map((m) => ({ value: m.id, label: `${m.name} · ${m.role}` }))}
             selected={filters.reviewerIds}
             onToggle={(v) => toggleIn('reviewerIds', v)}
+            onSelectAll={() => onFilters({ ...filters, reviewerIds: team.map((m) => m.id) })}
+            onClearAll={() => onFilters({ ...filters, reviewerIds: [] })}
           />
         </FilterDropdown>
 
@@ -1022,13 +1217,27 @@ function CheckList({
   options,
   selected,
   onToggle,
+  onSelectAll,
+  onClearAll,
 }: {
   options: { value: string; label: string; dot?: string }[]
   selected: string[]
   onToggle: (value: string) => void
+  onSelectAll?: () => void
+  onClearAll?: () => void
 }) {
+  const allSelected = options.length > 0 && options.every((o) => selected.includes(o.value))
   return (
     <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto">
+      {(onSelectAll || onClearAll) && options.length > 0 && (
+        <button
+          onClick={allSelected ? onClearAll : onSelectAll}
+          className="flex items-center gap-1.5 border-b border-line px-2.5 py-1.5 text-xs font-semibold text-link hover:bg-paper"
+        >
+          <CheckCheck className="h-3 w-3" />
+          {allSelected ? 'Deselect all' : 'Select all'}
+        </button>
+      )}
       {options.length === 0 && <p className="px-2.5 py-2 text-sm text-muted">No options.</p>}
       {options.map((o) => (
         <label
@@ -1373,6 +1582,17 @@ function ListView({
         const teamRatings = deriveTeamRatings(c)
         const selected = selectedIds.has(c.id)
         const compareSelected = compareIds.has(c.id)
+        // Historical score for unreviewed candidates
+        const histScore = historicalScore(c)
+        // Comment bubble count = number of team members who rated
+        const commentCount = teamRatings.length
+        // Majority vote label
+        const totalVotes = c.good + c.maybe + c.no
+        const majorityLabel = totalVotes > 0
+          ? c.no > c.good && c.no >= c.maybe ? 'No go'
+          : c.maybe > c.good && c.maybe > c.no ? 'Maybe'
+          : null
+          : null
         return (
           <div
             key={c.id}
@@ -1450,15 +1670,32 @@ function ListView({
               ))}
             </div>
 
-            {/* spacer */}
-            <span />
+            {/* comment bubble */}
+            <div className="flex items-center justify-center">
+              {commentCount > 0 && (
+                <span className="flex h-6 min-w-[24px] items-center justify-center gap-0.5 rounded-full bg-link/10 px-1.5 text-[11px] font-bold text-link">
+                  💬 {commentCount}
+                </span>
+              )}
+            </div>
 
             {/* score */}
-            <div className="text-center">
+            <div className="flex flex-col items-center gap-0.5 text-center">
               {reviewed ? (
-                <span className={cn('text-base font-bold', scoreColor)}>{score}</span>
+                <>
+                  <span className={cn('text-base font-bold', scoreColor)}>{score}</span>
+                  {majorityLabel === 'No go' && (
+                    <span className="rounded-full bg-signal-no/15 px-2 py-0.5 text-[9px] font-bold text-signal-no">No go</span>
+                  )}
+                  {majorityLabel === 'Maybe' && (
+                    <span className="rounded-full bg-signal-maybe/15 px-2 py-0.5 text-[9px] font-bold text-[#8A6D00]">Maybe</span>
+                  )}
+                </>
               ) : (
-                <span className="text-[11px] font-semibold text-muted">—</span>
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-base font-bold text-muted/50">{histScore}</span>
+                  <span className="text-[9px] font-semibold uppercase tracking-wide text-muted">Historical</span>
+                </div>
               )}
             </div>
 
@@ -1967,6 +2204,14 @@ function CandidateCard({
   const teamRatings = deriveTeamRatings(candidate)
   const visibleRatings = teamRatings.slice(0, 3)
   const overflow = teamRatings.length - visibleRatings.length
+  const histScore = historicalScore(candidate)
+  const totalVotes = candidate.good + candidate.maybe + candidate.no
+  const majorityLabel = totalVotes > 0
+    ? candidate.no > candidate.good && candidate.no >= candidate.maybe ? 'No go'
+    : candidate.maybe > candidate.good && candidate.maybe > candidate.no ? 'Maybe'
+    : null
+    : null
+  const isNew = isNewCandidate(candidate.id)
 
   return (
     <div
@@ -2005,7 +2250,12 @@ function CandidateCard({
       )}
 
       <div className="flex items-center gap-2">
-        <Avatar src={candidate.avatar} name={candidate.name} size="sm" />
+        <div className="relative">
+          <Avatar src={candidate.avatar} name={candidate.name} size="sm" />
+          {isNew && (
+            <span className="absolute -right-1 -top-1 text-[10px] leading-none" title="New candidate">⭐</span>
+          )}
+        </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-ink">{candidate.name}</p>
           <p className="truncate text-[11px] text-muted">
@@ -2019,9 +2269,20 @@ function CandidateCard({
           {candidate.city}
         </span>
         {reviewed ? (
-          <span className={cn('text-sm font-bold', scoreColor)}>{score}</span>
+          <div className="flex items-center gap-1">
+            <span className={cn('text-sm font-bold', scoreColor)}>{score}</span>
+            {majorityLabel === 'No go' && (
+              <span className="rounded-full bg-signal-no/15 px-1.5 py-0.5 text-[9px] font-bold text-signal-no">No go</span>
+            )}
+            {majorityLabel === 'Maybe' && (
+              <span className="rounded-full bg-signal-maybe/15 px-1.5 py-0.5 text-[9px] font-bold text-[#8A6D00]">Maybe</span>
+            )}
+          </div>
         ) : (
-          <span className="text-[11px] font-semibold text-muted">Not reviewed</span>
+          <div className="flex flex-col items-end">
+            <span className="text-sm font-bold text-muted/50">{histScore}</span>
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-muted">Hist.</span>
+          </div>
         )}
       </div>
 
@@ -2305,6 +2566,14 @@ const WATCH_RATING_OPTIONS = [
   { key: 'good' as const, label: 'Good match', icon: Check, base: 'border-signal-good/30 text-signal-good hover:bg-signal-good/5', active: 'border-signal-good bg-signal-good text-white' },
 ]
 
+const MINI_SCENE_AXES = [
+  'Emotional truth',
+  'Character ownership',
+  'Physical presence',
+  'Listening & reaction',
+  'Text command',
+]
+
 function WatchModal({
   candidates,
   rolesById,
@@ -2317,11 +2586,17 @@ function WatchModal({
   const toast = useToast()
   const [idx, setIdx] = useState(0)
   const [lastVote, setLastVote] = useState<Signal | null>(null)
+  const [sceneToggles, setSceneToggles] = useState<Record<string, boolean | null>>({})
   const candidate = candidates[Math.min(idx, candidates.length - 1)]
 
   const go = (dir: 1 | -1) => {
     setIdx((i) => (i + dir + candidates.length) % candidates.length)
     setLastVote(null)
+    setSceneToggles({})
+  }
+
+  const toggleScene = (axis: string, value: boolean) => {
+    setSceneToggles((cur) => ({ ...cur, [axis]: cur[axis] === value ? null : value }))
   }
 
   return (
@@ -2329,6 +2604,7 @@ function WatchModal({
       <div
         onClick={(e) => e.stopPropagation()}
         className="flex w-full max-w-2xl flex-col gap-3 rounded-card bg-card p-4 shadow-card-hover"
+        style={{ maxHeight: '92vh', overflowY: 'auto' }}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -2344,16 +2620,10 @@ function WatchModal({
 
         <Player key={candidate.id} src={asset(candidate.video)} />
 
-        <div className="flex items-center justify-between gap-3">
-          <button
-            onClick={() => go(-1)}
-            disabled={candidates.length < 2}
-            className="flex h-9 w-9 items-center justify-center rounded-btn border border-line text-muted hover:text-ink disabled:opacity-30"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-
-          <div className="flex flex-1 justify-center gap-2">
+        {/* Your Rating */}
+        <div className="flex flex-col gap-2">
+          <p className="text-[11px] font-bold uppercase tracking-label text-muted">Your Rating</p>
+          <div className="flex justify-center gap-2">
             {WATCH_RATING_OPTIONS.map((o) => {
               const Icon = o.icon
               const isActive = lastVote === o.key
@@ -2376,7 +2646,57 @@ function WatchModal({
               )
             })}
           </div>
+        </div>
 
+        {/* Scene Analysis */}
+        <div className="flex flex-col gap-2 rounded-btn border border-line bg-paper p-3">
+          <p className="text-[11px] font-bold uppercase tracking-label text-muted">Scene Analysis</p>
+          <div className="grid grid-cols-1 gap-1.5">
+            {MINI_SCENE_AXES.map((axis) => {
+              const val = sceneToggles[axis] ?? null
+              return (
+                <div key={axis} className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-ink">{axis}</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => toggleScene(axis, true)}
+                      className={cn(
+                        'flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors',
+                        val === true
+                          ? 'border-signal-good bg-signal-good text-white'
+                          : 'border-line text-muted hover:border-signal-good/60 hover:text-signal-good',
+                      )}
+                    >
+                      +
+                    </button>
+                    <button
+                      onClick={() => toggleScene(axis, false)}
+                      className={cn(
+                        'flex h-6 w-6 items-center justify-center rounded border text-xs font-bold transition-colors',
+                        val === false
+                          ? 'border-signal-no bg-signal-no text-white'
+                          : 'border-line text-muted hover:border-signal-no/60 hover:text-signal-no',
+                      )}
+                    >
+                      −
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <div className="flex items-center justify-between gap-3">
+          <button
+            onClick={() => go(-1)}
+            disabled={candidates.length < 2}
+            className="flex h-9 w-9 items-center justify-center rounded-btn border border-line text-muted hover:text-ink disabled:opacity-30"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-xs text-muted">← → to navigate</span>
           <button
             onClick={() => go(1)}
             disabled={candidates.length < 2}

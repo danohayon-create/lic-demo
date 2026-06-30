@@ -6,7 +6,7 @@ import type { Signal } from './types'
 export type { Signal }
 
 export type CandidateStatus = 'new' | 'no-go' | 'shortlisted' | 'callback' | 'offer' | 'cast'
-export type RolePipelineStatus = 'New' | 'Viewed' | 'Reviewed' | 'Shortlisted' | 'Callback' | 'Offer' | 'Cast'
+export type RolePipelineStatus = 'To Review' | 'Viewed' | 'Reviewed' | 'Shortlisted' | 'Callback' | 'Offer' | 'Cast'
 
 export type Candidate = {
   id: string
@@ -35,13 +35,13 @@ export type Candidate = {
 }
 
 export const PIPELINE_STATUSES: RolePipelineStatus[] = [
-  'New', 'Viewed', 'Reviewed', 'Shortlisted', 'Callback', 'Offer', 'Cast',
+  'To Review', 'Viewed', 'Reviewed', 'Shortlisted', 'Callback', 'Offer', 'Cast',
 ]
 
 export const BOARD_COLUMNS: CandidateStatus[] = ['new', 'no-go', 'shortlisted', 'callback', 'offer', 'cast']
 
 export const BOARD_COLUMN_LABELS: Record<CandidateStatus, RolePipelineStatus> = {
-  new: 'New',
+  new: 'To Review',
   'no-go': 'Reviewed',
   shortlisted: 'Shortlisted',
   callback: 'Callback',
@@ -650,11 +650,11 @@ const STATUS_RANK = PIPELINE_STATUSES
 
 /** Highest pipeline stage reached among a role's candidates (for the dashboard default). */
 export function deriveRoleStatus(candidates: Candidate[]): RolePipelineStatus {
-  if (candidates.length === 0) return 'New'
+  if (candidates.length === 0) return 'To Review'
   return candidates.reduce<RolePipelineStatus>((best, c) => {
     const label = BOARD_COLUMN_LABELS[c.status]
     return STATUS_RANK.indexOf(label) > STATUS_RANK.indexOf(best) ? label : best
-  }, 'New')
+  }, 'To Review')
 }
 
 export function useRoleStatus(roleId: string): RolePipelineStatus {
@@ -665,6 +665,67 @@ export function useRoleStatus(roleId: string): RolePipelineStatus {
 
 export function setRoleStatus(roleId: string, status: RolePipelineStatus) {
   state = { ...state, roleStatusOverrides: { ...state.roleStatusOverrides, [roleId]: status } }
+  persist()
+  emit()
+}
+
+/** Demo-only: resets all candidates for the given roles back to initial state.
+ *  ~75% go to 'new', ~25% to 'no-go' (Reviewed), all votes cleared. */
+/**
+ * Apply a scenario preset to all candidates for the given roles.
+ * Used by the S1 / S2 / S3 demo buttons in the Selection Assistant.
+ *
+ * S1 — end of review phase:   all 'new' → 'no-go' with ratings (nothing in To Review)
+ * S2 — shortlist phase:       ~30% shortlisted/callback, rest stay 'no-go' w/ maybe/no
+ * S3 — finalize casting:      15 → 'offer', 5 → 'cast', all others → 'no-go'
+ */
+export function applyScenarioPreset(scenario: 1 | 2 | 3, roleIds: string[]): void {
+  const targets = state.candidates.filter((c) => roleIds.includes(c.roleId))
+  const others  = state.candidates.filter((c) => !roleIds.includes(c.roleId))
+
+  let updated: Candidate[]
+
+  if (scenario === 1) {
+    updated = targets.map((c, i) => ({
+      ...c,
+      status: 'no-go' as CandidateStatus,
+      good:  i % 5 === 0 ? 2 : 0,
+      maybe: i % 5 === 1 ? 2 : i % 5 === 2 ? 1 : 0,
+      no:    i % 5 >= 3  ? 2 : 1,
+    }))
+  } else if (scenario === 2) {
+    updated = targets.map((c, i) => {
+      const bucket = i % 10
+      if (bucket <= 1) return { ...c, status: 'callback'    as CandidateStatus, good: 3, maybe: 1, no: 0 }
+      if (bucket <= 3) return { ...c, status: 'shortlisted' as CandidateStatus, good: 2, maybe: 1, no: 0 }
+      if (bucket <= 5) return { ...c, status: 'no-go'       as CandidateStatus, good: 0, maybe: 2, no: 1 }
+      return               { ...c, status: 'no-go'          as CandidateStatus, good: 0, maybe: 0, no: 2 }
+    })
+  } else {
+    // S3: sort by existing score descending
+    const sorted = [...targets].sort((a, b) => candidateScore(b) - candidateScore(a))
+    updated = sorted.map((c, i) => {
+      if (i < 5)  return { ...c, status: 'cast'  as CandidateStatus, good: 4, maybe: 0, no: 0 }
+      if (i < 20) return { ...c, status: 'offer' as CandidateStatus, good: 3, maybe: 1, no: 0 }
+      return              { ...c, status: 'no-go' as CandidateStatus, good: 0, maybe: 0, no: 2 }
+    })
+  }
+
+  state = { ...state, candidates: [...others, ...updated], roleStatusOverrides: {} }
+  persist()
+  emit()
+}
+
+export function resetCandidatesForDemo(roleIds: string[]): void {
+  state = {
+    ...state,
+    candidates: state.candidates.map((c, idx) => {
+      if (!roleIds.includes(c.roleId)) return c
+      const newStatus: CandidateStatus = idx % 4 === 0 ? 'no-go' : 'new'
+      return { ...c, status: newStatus, good: 0, maybe: 0, no: 0, raterVotes: undefined }
+    }),
+    roleStatusOverrides: {},
+  }
   persist()
   emit()
 }
@@ -713,4 +774,86 @@ export function chosenCandidateForRole(roleId: string): Candidate | undefined {
 export function shortlistedCountForRole(roleId: string): number {
   const shortlistRank = BOARD_COLUMNS.indexOf('shortlisted')
   return getCandidatesForRole(roleId).filter((c) => BOARD_COLUMNS.indexOf(c.status) >= shortlistRank).length
+}
+
+/** IDs of candidates who are first-time applicants to this show (marked for demo purposes). */
+export const NEW_CANDIDATE_IDS = new Set([
+  's17-25', 's17-28', 's17-32', 's17-36', 's17-40',
+  's17-43', 's17-47', 's17-50', 's17-54', 's17-58',
+  's17-62', 's17-66', 's17-69', 's17-72', 's17-76',
+  's17-80', 's17-84', 's17-88', 's17-93', 's17-97',
+])
+
+export function isNewCandidate(candidateId: string): boolean {
+  return NEW_CANDIDATE_IDS.has(candidateId)
+}
+
+function candidateNum(c: Candidate): number {
+  const m = c.id.match(/(\d+)$/)
+  return m ? parseInt(m[1]) : 0
+}
+
+/** Demo preset — Step 1: initial review done. Most candidates in no-go, ~10 still in "To Review", 3 shortlisted. */
+export function setDemoStateStep1(roleIds: string[]): void {
+  state = {
+    ...state,
+    candidates: state.candidates.map((c) => {
+      if (!roleIds.includes(c.roleId)) return c
+      const n = candidateNum(c)
+      if (n >= 91) return { ...c, status: 'new', good: 0, maybe: 0, no: 0, raterVotes: undefined }
+      if (n <= 3)  return { ...c, status: 'shortlisted', good: 3, maybe: 1, no: 0, raterVotes: undefined }
+      const mod = n % 3
+      if (mod === 1) return { ...c, status: 'no-go', good: 0, maybe: 0, no: 3, raterVotes: undefined }
+      if (mod === 2) return { ...c, status: 'no-go', good: 0, maybe: 2, no: 1, raterVotes: undefined }
+      return { ...c, status: 'no-go', good: 1, maybe: 0, no: 0, raterVotes: undefined }
+    }),
+    roleStatusOverrides: {},
+  }
+  persist()
+  emit()
+}
+
+/** Demo preset — Step 2: shortlisting in progress. ~40 candidates in Shortlisted/Callback. */
+export function setDemoStateStep2(roleIds: string[]): void {
+  state = {
+    ...state,
+    candidates: state.candidates.map((c) => {
+      if (!roleIds.includes(c.roleId)) return c
+      const n = candidateNum(c)
+      if (n >= 91) return { ...c, status: 'new', good: 0, maybe: 0, no: 0, raterVotes: undefined }
+      if (n <= 3)  return { ...c, status: 'shortlisted', good: 4, maybe: 1, no: 0, raterVotes: undefined }
+      if (n <= 33) return { ...c, status: 'shortlisted', good: 2, maybe: 1, no: 0, raterVotes: undefined }
+      if (n <= 43) return { ...c, status: 'callback', good: 3, maybe: 2, no: 0, raterVotes: undefined }
+      const mod = n % 3
+      if (mod === 1) return { ...c, status: 'no-go', good: 0, maybe: 0, no: 3, raterVotes: undefined }
+      if (mod === 2) return { ...c, status: 'no-go', good: 0, maybe: 2, no: 1, raterVotes: undefined }
+      return { ...c, status: 'no-go', good: 1, maybe: 0, no: 0, raterVotes: undefined }
+    }),
+    roleStatusOverrides: {},
+  }
+  persist()
+  emit()
+}
+
+/** Demo preset — Step 3: final casting. 6 cast, 4 offer, rest distributed. */
+export function setDemoStateStep3(roleIds: string[]): void {
+  state = {
+    ...state,
+    candidates: state.candidates.map((c) => {
+      if (!roleIds.includes(c.roleId)) return c
+      const n = candidateNum(c)
+      if (n >= 91) return { ...c, status: 'new', good: 0, maybe: 0, no: 0, raterVotes: undefined }
+      if ([1, 4, 6, 8, 10, 12].includes(n)) return { ...c, status: 'cast', good: 5, maybe: 0, no: 0, raterVotes: undefined }
+      if ([2, 3, 5, 7].includes(n))         return { ...c, status: 'offer', good: 4, maybe: 1, no: 0, raterVotes: undefined }
+      if (n <= 18)  return { ...c, status: 'callback', good: 3, maybe: 2, no: 0, raterVotes: undefined }
+      if (n <= 45)  return { ...c, status: 'shortlisted', good: 2, maybe: 1, no: 0, raterVotes: undefined }
+      const mod = n % 3
+      if (mod === 1) return { ...c, status: 'no-go', good: 0, maybe: 0, no: 3, raterVotes: undefined }
+      if (mod === 2) return { ...c, status: 'no-go', good: 0, maybe: 2, no: 1, raterVotes: undefined }
+      return { ...c, status: 'no-go', good: 1, maybe: 0, no: 0, raterVotes: undefined }
+    }),
+    roleStatusOverrides: {},
+  }
+  persist()
+  emit()
 }
