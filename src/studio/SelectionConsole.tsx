@@ -391,30 +391,58 @@ export function SelectionConsole() {
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<RotateCcw className="h-3.5 w-3.5" />}
-            onClick={() => {
-              resetCandidatesForDemo(allRoleIds)
-              toast('Demo reset — candidates returned to initial review state')
-            }}
-          >
-            Reset
-          </Button>
-          <span className="h-5 w-px bg-line" />
-          {([1, 2, 3] as const).map((step) => (
-            <button
-              key={step}
+          {/* Reset */}
+          <div className="relative group flex items-center gap-1">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<RotateCcw className="h-3.5 w-3.5" />}
               onClick={() => {
-                applyScenarioPreset(step, allRoleIds)
-                toast(`Demo → State S${step}`)
+                resetCandidatesForDemo(allRoleIds)
+                setFilters(EMPTY_FILTERS)
+                setTopTalentActive(false)
+                toast('Demo reset')
               }}
-              className="flex h-7 items-center rounded-btn border border-line bg-paper px-2.5 text-[11px] font-bold text-muted hover:border-ink/30 hover:text-ink"
             >
-              S{step}
-            </button>
-          ))}
+              Reset
+            </Button>
+            <span className="cursor-default text-[10px] text-muted/60 hover:text-muted">
+              <Info className="h-3 w-3" />
+            </span>
+            <div className="pointer-events-none absolute left-0 top-full z-50 mt-1.5 hidden w-56 rounded-card border border-line bg-card p-2.5 text-[11px] leading-relaxed text-muted shadow-card group-hover:block">
+              Remet tous les candidats à l'état initial&nbsp;: <strong>150 To Review</strong> et <strong>50 Reviewed</strong>. Tous les filtres sont effacés.
+            </div>
+          </div>
+          <span className="h-5 w-px bg-line" />
+          {/* S1 / S2 / S3 */}
+          {([1, 2, 3] as const).map((s) => {
+            const tips: Record<number, string> = {
+              1: 'Les 200 candidats ont tous été reviewés — aucune fiche en To Review.',
+              2: '120 éliminés (No go), 40 shortlistés et 40 en Callback.',
+              3: '180 éliminés, 15 en Offer et 5 en Cast.',
+            }
+            return (
+              <div key={s} className="relative group flex items-center gap-0.5">
+                <button
+                  onClick={() => {
+                    applyScenarioPreset(s, allRoleIds)
+                    setFilters(EMPTY_FILTERS)
+                    setTopTalentActive(false)
+                    toast(`S${s} appliqué`)
+                  }}
+                  className="flex h-7 items-center rounded-btn border border-line bg-paper px-2.5 text-[11px] font-bold text-muted hover:border-ink/30 hover:text-ink"
+                >
+                  S{s}
+                </button>
+                <span className="cursor-default text-[10px] text-muted/60 hover:text-muted">
+                  <Info className="h-3 w-3" />
+                </span>
+                <div className="pointer-events-none absolute right-0 top-full z-50 mt-1.5 hidden w-52 rounded-card border border-line bg-card p-2.5 text-[11px] leading-relaxed text-muted shadow-card group-hover:block">
+                  {tips[s]}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -450,7 +478,6 @@ export function SelectionConsole() {
 
       {/* Selection Assistant */}
       <SelectionAssistant
-        roleIds={allRoleIds}
         onApplyFilters={(f, topTalent) => {
           setFilters({ ...EMPTY_FILTERS, ...f })
           setTopTalentActive(topTalent?.active ?? false)
@@ -861,25 +888,12 @@ const ASSISTANT_STEPS: {
 ]
 
 function SelectionAssistant({
-  roleIds,
   onApplyFilters,
 }: {
-  roleIds: string[]
   onApplyFilters: (f: Partial<SavedSearchFilters>, topTalent: { active: boolean; pct?: number } | null) => void
 }) {
-  const toast = useToast()
   const [activeStep, setActiveStep] = useState<StepId | null>(null)
   const step = ASSISTANT_STEPS.find((s) => s.id === activeStep)
-
-  const handleApplyPreset = (id: StepId) => {
-    applyScenarioPreset(id, roleIds)
-    const labels: Record<StepId, string> = {
-      1: 'S1 — All candidates moved to Reviewed',
-      2: 'S2 — Shortlist & Callback applied',
-      3: 'S3 — 15 Offer · 5 Cast · rest eliminated',
-    }
-    toast(labels[id])
-  }
 
   return (
     <div className="rounded-card border border-line bg-paper">
@@ -911,17 +925,6 @@ function SelectionAssistant({
       </div>
       {step && (
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3">
-          {/* Apply preset button */}
-          <button
-            onClick={() => handleApplyPreset(step.id)}
-            className="flex items-center gap-1.5 rounded-full bg-link px-3 py-1.5 text-xs font-semibold text-white hover:bg-link/90 transition-colors"
-            title={`Simulate S${step.id} state on the board`}
-          >
-            <CheckCheck className="h-3 w-3" />
-            Apply S{step.id} state
-          </button>
-          <span className="text-muted/40 text-xs">·</span>
-          {/* Playlist filter buttons */}
           {step.playlists.map((p) => (
             <button
               key={p.label}
