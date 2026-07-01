@@ -220,9 +220,9 @@ function SelfTapeInterstitial({
         <div className="mx-auto h-1 w-10 rounded-full bg-line" />
 
         <div className="text-center">
-          <h3 className="text-base font-bold text-ink">Prêt à tourner ?</h3>
+          <h3 className="text-base font-bold text-ink">Ready to record?</h3>
           <p className="mt-1 text-sm text-muted">
-            Découvrez nos 10 conseils pour un self-tape réussi, ou lancez-vous directement.
+            Check out our 10 tips for a great casting tape, or dive straight in.
           </p>
         </div>
 
@@ -234,8 +234,8 @@ function SelfTapeInterstitial({
             <BookOpen className="h-5 w-5" />
           </span>
           <div>
-            <p className="font-semibold text-ink">Voir les conseils</p>
-            <p className="text-xs text-muted">10 tips pour un self-tape pro</p>
+            <p className="font-semibold text-ink">See the tips</p>
+            <p className="text-xs text-muted">10 tips for a pro casting tape</p>
           </div>
         </button>
 
@@ -247,8 +247,8 @@ function SelfTapeInterstitial({
             <Camera className="h-5 w-5" />
           </span>
           <div>
-            <p className="font-semibold text-ink">Enregistrer maintenant</p>
-            <p className="text-xs text-muted/70">Je connais déjà les tips</p>
+            <p className="font-semibold text-ink">Record now</p>
+            <p className="text-xs text-muted/70">I already know the tips</p>
           </div>
         </button>
       </div>

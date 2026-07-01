@@ -7,8 +7,8 @@ export default defineConfig({
   base: process.env.GITHUB_PAGES ? '/lic-demo/' : '/',
   plugins: [react()],
   server: {
-    port: 5174,
-    strictPort: true,
+    port: Number(process.env.PORT) || 5174,
+    strictPort: false,
   },
   resolve: {
     alias: {

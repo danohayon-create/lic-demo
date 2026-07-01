@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Zap, MapPin, Clock, Check, ChevronRight } from 'lucide-react'
+import { Zap, MapPin, Clock, ChevronRight } from 'lucide-react'
 import { Card, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import { AppHeader } from './AppHeader'
@@ -66,13 +66,6 @@ export function Discover() {
 function FeaturedCard() {
   const navigate = useNavigate()
   const project = projectsById['evermore']
-  const [confirming, setConfirming] = useState(false)
-
-  const snapApply = () => {
-    setConfirming(true)
-    setTimeout(() => navigate('/app/selftape/evermore'), 1100)
-  }
-
   return (
     <div className="relative overflow-hidden rounded-card">
       <img src={asset(project.poster)} alt={project.title} className="h-56 w-full object-cover" />
@@ -95,23 +88,13 @@ function FeaturedCard() {
           <h2 className="text-2xl font-bold tracking-tight text-white">{project.title}</h2>
         </div>
         <button
-          onClick={snapApply}
+          onClick={() => navigate('/app/casting/evermore')}
           className="flex items-center justify-center gap-2 rounded-btn bg-cream px-4 py-3 text-sm font-bold text-ink shadow-sm transition-transform active:scale-[0.98]"
         >
           <Zap className="h-4 w-4" />
-          Snap apply
+          View casting
         </button>
       </div>
-
-      {confirming && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ink/85 backdrop-blur-sm">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-cream text-ink">
-            <Check className="h-7 w-7" />
-          </span>
-          <p className="text-sm font-semibold text-white">Snap apply sent</p>
-          <p className="text-xs text-white/70">Opening the brief…</p>
-        </div>
-      )}
     </div>
   )
 }

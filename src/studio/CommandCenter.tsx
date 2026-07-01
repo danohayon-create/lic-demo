@@ -68,10 +68,10 @@ const SCENARIOS: Scenario[] = [
     auditions: {
       total: 243, trendPct: 38, trendUp: true,
       breakdown: [
-        { label: 'Survivor S12',  projectId: 'survivor-australia',    delta: 142 },
-        { label: 'MasterChef',    projectId: 'masterchef-australia',  delta: 61 },
-        { label: 'Big Brother',   projectId: 'big-brother-australia', delta: 28 },
-        { label: 'Evermore',      projectId: 'evermore',              delta: 12 },
+        { label: 'MasterChef US S17', projectId: 'masterchef-australia-s17', delta: 61 },
+        { label: 'Survivor S12',      projectId: 'survivor-australia',        delta: 142 },
+        { label: 'Big Brother',       projectId: 'big-brother-australia',     delta: 28 },
+        { label: 'Evermore',          projectId: 'evermore',                  delta: 12 },
       ],
     },
     tasks: {
@@ -195,10 +195,10 @@ const QUICK_ACTIONS = [
 ]
 
 const STRONGEST_TAPES = [
-  { name: 'Maya Reyes',  meta: 'Fanny Brice · Evermore',        score: 94, avatar: '/avatars/maya-reyes.png' },
-  { name: 'Theo Vance',  meta: 'Castaway · Survivor',            score: 89, avatar: '/avatars/theo-vance.jpg' },
-  { name: 'Sofia Bello', meta: 'Home cook · MasterChef',         score: 86, avatar: '/avatars/sofia-bello.jpg' },
-  { name: 'Noor Haddad', meta: 'Houseguest · Big Brother',       score: 82, avatar: '/avatars/noor-haddad.jpg' },
+  { name: 'Maya Reyes',  meta: 'Home cook · MasterChef US S17', score: 94, avatar: '/avatars/maya-reyes.png' },
+  { name: 'Theo Vance',  meta: 'Home cook · MasterChef US S17', score: 89, avatar: '/avatars/theo-vance.jpg' },
+  { name: 'Sofia Bello', meta: 'Home cook · MasterChef US S17', score: 86, avatar: '/avatars/sofia-bello.jpg' },
+  { name: 'Noor Haddad', meta: 'Home cook · MasterChef US S17', score: 82, avatar: '/avatars/noor-haddad.jpg' },
 ]
 
 type AssistantResponse = { text: string; items: { dot: string; label: string; value: string }[] }
@@ -312,7 +312,7 @@ export function CommandCenter() {
             {scenario.primary === 'auditions' && (
               <>
                 <AuditionsWidget data={scenario.auditions} variant="primary" />
-                <StrongestTapesCard onStartReviewing={() => navigate('/studio/review')} />
+                <StrongestTapesCard onStartReviewing={() => navigate('/studio/selection?p=masterchef-australia-s17')} />
               </>
             )}
             {scenario.primary === 'tasks'         && <TasksWidget items={scenario.tasks.items} variant="primary" />}
