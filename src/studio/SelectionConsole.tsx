@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Columns2,
   Gauge,
   Grid2x2,
@@ -20,13 +21,16 @@ import {
   List,
   Lock,
   MapPin,
+  PhoneCall,
   Play,
   RotateCcw,
   Search,
   Send,
   Sparkles,
   Square,
+  Star,
   Trash2,
+  UserCheck,
   UserRound,
   X,
 } from 'lucide-react'
@@ -39,10 +43,12 @@ import {
   useCandidatesForRoles,
   moveCandidate,
   rateCandidate,
+  useMyVote,
   resetCandidatesForDemo,
   applyScenarioPreset,
   isNewCandidate,
   candidateScore,
+  videoPerformanceScore,
   candidateAverageRating,
   deriveTeamRatings,
   BOARD_COLUMNS,
@@ -1390,6 +1396,8 @@ function ViewTab({
 
 /** Deterministic mock historical score from candidate ID (30–80). */
 function historicalScore(candidate: { id: string }): number {
+  const explicit = videoPerformanceScore(candidate.id)
+  if (explicit != null) return explicit
   let h = 0
   for (const ch of candidate.id) h = (h * 31 + ch.charCodeAt(0)) & 0xffff
   return 30 + (h % 51)
@@ -1533,6 +1541,7 @@ function ListView({
   listSort?: { col: 'score' | 'status'; dir: 'asc' | 'desc' } | null
   onToggleListSort?: (col: 'score' | 'status') => void
 }) {
+  const navigate = useNavigate()
   if (candidates.length === 0) {
     return (
       <div className="rounded-card border border-dashed border-line py-16 text-center text-sm text-muted">
@@ -1641,7 +1650,12 @@ function ListView({
               <p className="truncate text-xs font-bold uppercase tracking-wide text-muted">
                 {rolesById[c.roleId]?.name ?? '—'}
               </p>
-              <p className="truncate text-sm font-semibold text-ink">{c.name}</p>
+              <button
+                onClick={(e) => { e.stopPropagation(); navigate(`/studio/talent/${c.id}`) }}
+                className="block max-w-full truncate text-left text-sm font-semibold text-link hover:underline"
+              >
+                {c.name}
+              </button>
               <p className="truncate text-[11px] text-muted">{c.age} y/o · {c.city}</p>
             </div>
 
@@ -2201,6 +2215,7 @@ function CandidateCard({
   compareSelected?: boolean
   onToggleCompare?: () => void
 }) {
+  const navigate = useNavigate()
   const score = candidateScore(candidate)
   const reviewed = candidate.good + candidate.maybe + candidate.no > 0
   const scoreColor = score >= 75 ? 'text-signal-good' : score >= 50 ? 'text-[#8A6D00]' : 'text-signal-no'
@@ -2260,7 +2275,12 @@ function CandidateCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-ink">{candidate.name}</p>
+          <button
+            onClick={(e) => { e.stopPropagation(); navigate(`/studio/talent/${candidate.id}`) }}
+            className="block max-w-full truncate text-left text-sm font-semibold text-link hover:underline"
+          >
+            {candidate.name}
+          </button>
           <p className="truncate text-[11px] text-muted">
             {candidate.age} y/o{showRole && roleName ? ` · ${roleName}` : ''}
           </p>
@@ -2314,6 +2334,55 @@ function CandidateCard({
               +{overflow}
             </span>
           )}
+        </div>
+      )}
+
+      {/* Quick-action buttons — shown in Reviewed (no-go) and pipeline columns */}
+      {candidate.status === 'no-go' && !selectMode && !compareMode && (
+        <div className="flex gap-1.5 border-t border-line pt-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); moveCandidate(candidate.id, 'shortlisted') }}
+            className="flex flex-1 items-center justify-center gap-1 rounded-btn border border-line bg-paper py-1 text-[10px] font-semibold text-muted hover:border-signal-good/50 hover:bg-signal-good/10 hover:text-signal-good transition-colors"
+          >
+            <UserCheck className="h-3 w-3" />
+            Shortlist
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); moveCandidate(candidate.id, 'callback') }}
+            className="flex flex-1 items-center justify-center gap-1 rounded-btn border border-line bg-paper py-1 text-[10px] font-semibold text-muted hover:border-link/50 hover:bg-link/10 hover:text-link transition-colors"
+          >
+            <PhoneCall className="h-3 w-3" />
+            Callback
+          </button>
+        </div>
+      )}
+      {candidate.status === 'shortlisted' && !selectMode && !compareMode && (
+        <div className="flex gap-1.5 border-t border-line pt-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); moveCandidate(candidate.id, 'offer') }}
+            className="flex flex-1 items-center justify-center gap-1 rounded-btn border border-line bg-paper py-1 text-[10px] font-semibold text-muted hover:border-gold/50 hover:bg-gold/10 hover:text-gold transition-colors"
+          >
+            <Star className="h-3 w-3" />
+            Offer
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); moveCandidate(candidate.id, 'callback') }}
+            className="flex flex-1 items-center justify-center gap-1 rounded-btn border border-line bg-paper py-1 text-[10px] font-semibold text-muted hover:border-link/50 hover:bg-link/10 hover:text-link transition-colors"
+          >
+            <PhoneCall className="h-3 w-3" />
+            Callback
+          </button>
+        </div>
+      )}
+      {candidate.status === 'callback' && !selectMode && !compareMode && (
+        <div className="flex gap-1.5 border-t border-line pt-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); moveCandidate(candidate.id, 'offer') }}
+            className="flex flex-1 items-center justify-center gap-1 rounded-btn border border-line bg-paper py-1 text-[10px] font-semibold text-muted hover:border-gold/50 hover:bg-gold/10 hover:text-gold transition-colors"
+          >
+            <Star className="h-3 w-3" />
+            Offer
+          </button>
         </div>
       )}
     </div>
@@ -2401,10 +2470,19 @@ const PAIRWISE_HISTORY = [
   { show: 'Big Brother AU',  result: 'Shortlisted', pts: 50  },
 ]
 
-function CandidateScoreCard({ candidate, label }: { candidate: Candidate; label: 'A' | 'B' }) {
+function CandidateScoreCard({
+  candidate,
+  label,
+  onMove,
+}: {
+  candidate: Candidate
+  label: 'A' | 'B'
+  onMove: (status: CandidateStatus) => void
+}) {
   const ratingScore = candidateScore(candidate)
   const pastScore = pairwiseHistoricalScore(candidate)
   const licScore = pairwiseLicScore(candidate)
+  const myVote = useMyVote(candidate.id)
 
   return (
     <div className="flex flex-col gap-3 rounded-btn border border-line p-4">
@@ -2505,6 +2583,105 @@ function CandidateScoreCard({ candidate, label }: { candidate: Candidate; label:
           </div>
         </div>
       </div>
+
+      {/* Rating buttons (green / orange / red) with current score reminder */}
+      <div className="border-t border-line pt-3">
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-label text-muted">Ma note · Score actuel : {ratingScore}/100</p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => rateCandidate(candidate.id, 'good')}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1 rounded-btn border py-2 text-xs font-semibold transition-colors',
+              myVote === 'good'
+                ? 'border-signal-good bg-signal-good text-white'
+                : 'border-signal-good/30 text-signal-good hover:bg-signal-good/10',
+            )}
+          >
+            <Check className="h-3.5 w-3.5" />
+            {candidate.good}
+          </button>
+          <button
+            onClick={() => rateCandidate(candidate.id, 'maybe')}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1 rounded-btn border py-2 text-xs font-semibold transition-colors',
+              myVote === 'maybe'
+                ? 'border-signal-maybe bg-signal-maybe text-white'
+                : 'border-signal-maybe/40 text-[#8A6D00] hover:bg-signal-maybe/10',
+            )}
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            {candidate.maybe}
+          </button>
+          <button
+            onClick={() => rateCandidate(candidate.id, 'no')}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-1 rounded-btn border py-2 text-xs font-semibold transition-colors',
+              myVote === 'no'
+                ? 'border-signal-no bg-signal-no text-white'
+                : 'border-signal-no/30 text-signal-no hover:bg-signal-no/10',
+            )}
+          >
+            <X className="h-3.5 w-3.5" />
+            {candidate.no}
+          </button>
+        </div>
+      </div>
+
+      {/* Pipeline action buttons */}
+      {candidate.status === 'no-go' && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => onMove('shortlisted')}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-btn border border-line bg-paper py-2 text-xs font-semibold text-muted hover:border-purple-400/50 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+            Shortlist
+          </button>
+          <button
+            onClick={() => onMove('callback')}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-btn border border-line bg-paper py-2 text-xs font-semibold text-muted hover:border-link/50 hover:bg-link/10 hover:text-link transition-colors"
+          >
+            <PhoneCall className="h-3.5 w-3.5" />
+            Callback
+          </button>
+        </div>
+      )}
+      {candidate.status === 'shortlisted' && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => onMove('callback')}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-btn border border-line bg-paper py-2 text-xs font-semibold text-muted hover:border-link/50 hover:bg-link/10 hover:text-link transition-colors"
+          >
+            <PhoneCall className="h-3.5 w-3.5" />
+            Callback
+          </button>
+          <button
+            onClick={() => onMove('offer')}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-btn border border-line bg-paper py-2 text-xs font-semibold text-muted hover:border-gold/50 hover:bg-gold/10 hover:text-gold transition-colors"
+          >
+            <Star className="h-3.5 w-3.5" />
+            Offer
+          </button>
+        </div>
+      )}
+      {candidate.status === 'callback' && (
+        <button
+          onClick={() => onMove('offer')}
+          className="flex w-full items-center justify-center gap-1.5 rounded-btn border border-line bg-paper py-2 text-xs font-semibold text-muted hover:border-gold/50 hover:bg-gold/10 hover:text-gold transition-colors"
+        >
+          <Star className="h-3.5 w-3.5" />
+          Offer
+        </button>
+      )}
+      {candidate.status === 'offer' && (
+        <button
+          onClick={() => onMove('cast')}
+          className="flex w-full items-center justify-center gap-1.5 rounded-btn border border-signal-good/40 bg-signal-good/10 py-2 text-xs font-semibold text-signal-good hover:bg-signal-good hover:text-white transition-colors"
+        >
+          <UserCheck className="h-3.5 w-3.5" />
+          Cast
+        </button>
+      )}
     </div>
   )
 }
@@ -2540,20 +2717,22 @@ function PairwiseModal({
 
         {/* Side by side */}
         <div className="grid grid-cols-2 gap-5">
-          <CandidateScoreCard candidate={candidateA} label="A" />
-          <CandidateScoreCard candidate={candidateB} label="B" />
+          <CandidateScoreCard
+            candidate={candidateA}
+            label="A"
+            onMove={(status) => { moveCandidate(candidateA.id, status); toast(`${candidateA.name.split(' ')[0]} → ${BOARD_COLUMN_LABELS[status]}`) }}
+          />
+          <CandidateScoreCard
+            candidate={candidateB}
+            label="B"
+            onMove={(status) => { moveCandidate(candidateB.id, status); toast(`${candidateB.name.split(' ')[0]} → ${BOARD_COLUMN_LABELS[status]}`) }}
+          />
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-center gap-3 border-t border-line pt-3">
-          <Button variant="secondary" onClick={() => { toast(`Preference saved: ${candidateA.name}`); onClose() }}>
-            Select A — {candidateA.name.split(' ')[0]}
-          </Button>
-          <Button variant="secondary" onClick={() => { toast(`Preference saved: ${candidateB.name}`); onClose() }}>
-            Select B — {candidateB.name.split(' ')[0]}
-          </Button>
+        {/* Footer — Close */}
+        <div className="flex items-center justify-center border-t border-line pt-3">
           <Button variant="primary" onClick={onClose} icon={<X className="h-3.5 w-3.5" />}>
-            Close
+            Fermer
           </Button>
         </div>
       </div>
@@ -2588,13 +2767,12 @@ function WatchModal({
 }) {
   const toast = useToast()
   const [idx, setIdx] = useState(0)
-  const [lastVote, setLastVote] = useState<Signal | null>(null)
   const [sceneToggles, setSceneToggles] = useState<Record<string, boolean | null>>({})
   const candidate = candidates[Math.min(idx, candidates.length - 1)]
+  const lastVote = useMyVote(candidate.id)
 
   const go = (dir: 1 | -1) => {
     setIdx((i) => (i + dir + candidates.length) % candidates.length)
-    setLastVote(null)
     setSceneToggles({})
   }
 
@@ -2621,6 +2799,28 @@ function WatchModal({
           </button>
         </div>
 
+        {/* Performance score above the video */}
+        {(() => {
+          const score = candidateScore(candidate)
+          const reviewed = candidate.good + candidate.maybe + candidate.no > 0
+          const histScore = historicalScore(candidate)
+          const scoreColor = score >= 75 ? 'text-signal-good' : score >= 50 ? 'text-[#8A6D00]' : 'text-signal-no'
+          return (
+            <div className="flex items-center gap-3 rounded-btn border border-line bg-paper px-3 py-2">
+              <div className="flex flex-col">
+                <span className={cn('text-lg font-bold', reviewed ? scoreColor : 'text-muted/50')}>
+                  {reviewed ? score : histScore}
+                </span>
+                <span className="text-[9px] font-semibold uppercase tracking-wide text-muted">
+                  {reviewed ? 'Casting score' : 'Hist. score'}
+                </span>
+              </div>
+              <span className="h-6 w-px bg-line" />
+              <span className="text-xs text-muted">{BOARD_COLUMN_LABELS[candidate.status]}</span>
+            </div>
+          )
+        })()}
+
         <Player key={candidate.id} src={asset(candidate.video)} />
 
         {/* Your Rating */}
@@ -2633,11 +2833,7 @@ function WatchModal({
               return (
                 <button
                   key={o.key}
-                  onClick={() => {
-                    rateCandidate(candidate.id, o.key)
-                    setLastVote(o.key)
-                    toast(`Vote added: ${o.label}`)
-                  }}
+                  onClick={() => { rateCandidate(candidate.id, o.key); toast(`Vote added: ${o.label}`) }}
                   className={cn(
                     'flex items-center gap-1.5 rounded-btn border-2 px-3 py-2 text-xs font-semibold transition-all',
                     isActive ? o.active : o.base,
@@ -2650,6 +2846,62 @@ function WatchModal({
             })}
           </div>
         </div>
+
+        {/* Pipeline action buttons */}
+        {candidate.status === 'no-go' && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => { moveCandidate(candidate.id, 'shortlisted'); toast('Moved to Shortlisted') }}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-btn border border-line bg-paper py-2 text-xs font-semibold text-muted hover:border-signal-good/50 hover:bg-signal-good/10 hover:text-signal-good transition-colors"
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              Shortlist
+            </button>
+            <button
+              onClick={() => { moveCandidate(candidate.id, 'callback'); toast('Moved to Callback') }}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-btn border border-line bg-paper py-2 text-xs font-semibold text-muted hover:border-link/50 hover:bg-link/10 hover:text-link transition-colors"
+            >
+              <PhoneCall className="h-3.5 w-3.5" />
+              Callback
+            </button>
+          </div>
+        )}
+        {candidate.status === 'shortlisted' && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => { moveCandidate(candidate.id, 'offer'); toast('Moved to Offer') }}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-btn border border-line bg-paper py-2 text-xs font-semibold text-muted hover:border-gold/50 hover:bg-gold/10 hover:text-gold transition-colors"
+            >
+              <Star className="h-3.5 w-3.5" />
+              Offer
+            </button>
+            <button
+              onClick={() => { moveCandidate(candidate.id, 'callback'); toast('Moved to Callback') }}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-btn border border-line bg-paper py-2 text-xs font-semibold text-muted hover:border-link/50 hover:bg-link/10 hover:text-link transition-colors"
+            >
+              <PhoneCall className="h-3.5 w-3.5" />
+              Callback
+            </button>
+          </div>
+        )}
+        {candidate.status === 'callback' && (
+          <button
+            onClick={() => { moveCandidate(candidate.id, 'offer'); toast('Moved to Offer') }}
+            className="flex w-full items-center justify-center gap-1.5 rounded-btn border border-line bg-paper py-2 text-xs font-semibold text-muted hover:border-gold/50 hover:bg-gold/10 hover:text-gold transition-colors"
+          >
+            <Star className="h-3.5 w-3.5" />
+            Offer
+          </button>
+        )}
+        {candidate.status === 'offer' && (
+          <button
+            onClick={() => { moveCandidate(candidate.id, 'cast'); toast(`${candidate.name.split(' ')[0]} → Cast`) ; onClose() }}
+            className="flex w-full items-center justify-center gap-1.5 rounded-btn border border-signal-good/40 bg-signal-good/10 py-2 text-xs font-semibold text-signal-good hover:bg-signal-good hover:text-white transition-colors"
+          >
+            <UserCheck className="h-3.5 w-3.5" />
+            Cast
+          </button>
+        )}
 
         {/* Scene Analysis */}
         <div className="flex flex-col gap-2 rounded-btn border border-line bg-paper p-3">

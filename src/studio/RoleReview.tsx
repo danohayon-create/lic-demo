@@ -4,7 +4,7 @@ import {
   ChevronLeft, ChevronRight, X, Check, HelpCircle, Pin, PhoneCall,
   LayoutGrid, Plus, Send, Star, Sparkles, History, TrendingUp, Info, Play, AtSign,
 } from 'lucide-react'
-import { Card, Avatar, Button, Tag } from '@/components/ui'
+import { Card, Avatar, Tag } from '@/components/ui'
 import { useToast } from '@/components/Toast'
 import { cn } from '@/lib/cn'
 import { projectsById, rolesByProject } from '@/data'
@@ -12,6 +12,7 @@ import {
   useRoleCandidates,
   moveCandidate,
   rateCandidate,
+  useMyVote,
   candidateScore,
   deriveTeamRatings,
   type Candidate,
@@ -74,12 +75,15 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
   })
   const candidate = candidates[Math.min(idx, Math.max(candidates.length - 1, 0))]
 
-  const go = (dir: 1 | -1) => setIdx((i) => (i + dir + candidates.length) % candidates.length)
+  const emptyToggles = () => Object.fromEntries(SCENE_AXES.map((a) => [a, null]))
+
+  const go = (dir: 1 | -1) => {
+    setIdx((i) => (i + dir + candidates.length) % candidates.length)
+    setSceneToggles(emptyToggles())
+  }
 
   // Scene toggles lifted here so the banner and modal can access them
-  const [sceneToggles, setSceneToggles] = useState<Record<string, boolean | null>>(
-    () => Object.fromEntries(SCENE_AXES.map((a) => [a, null]))
-  )
+  const [sceneToggles, setSceneToggles] = useState<Record<string, boolean | null>>(emptyToggles)
   const [showScoreModal, setShowScoreModal] = useState(false)
 
   if (!candidate) {
@@ -133,7 +137,7 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
           <Avatar src={candidate.avatar} name={candidate.name} size="lg" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="text-link">{candidate.name}</span>{' '}
+              <button onClick={() => navigate(`/studio/talent/${candidate.id}`)} className="text-link hover:underline">{candidate.name}</button>{' '}
               <span className="text-muted">as</span>{' '}
               <span className="text-signal-no">{role.name}</span>
               <span className="flex items-center gap-1.5">
@@ -154,25 +158,36 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
           </div>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            icon={<Pin className="h-4 w-4" />}
+          <button
             onClick={() => {
               const r = moveCandidate(candidate.id, 'shortlisted')
               toast(r.ok ? `${candidate.name} shortlisted` : r.reason ?? 'Could not shortlist')
             }}
+            className={cn(
+              'flex items-center gap-2 rounded-btn border px-3 py-2 text-sm font-semibold transition-colors',
+              candidate.status === 'shortlisted'
+                ? 'border-signal-good bg-signal-good text-white'
+                : 'border-line bg-paper text-muted hover:border-signal-good/50 hover:bg-signal-good/10 hover:text-signal-good',
+            )}
           >
+            <Pin className="h-4 w-4" />
             Shortlist
-          </Button>
-          <Button
-            icon={<PhoneCall className="h-4 w-4" />}
+          </button>
+          <button
             onClick={() => {
               const r = moveCandidate(candidate.id, 'callback')
               toast(r.ok ? `Callback invite sent to ${candidate.name}` : r.reason ?? 'Could not invite')
             }}
+            className={cn(
+              'flex items-center gap-2 rounded-btn border px-3 py-2 text-sm font-semibold transition-colors',
+              candidate.status === 'callback'
+                ? 'border-link bg-link text-white'
+                : 'border-line bg-paper text-muted hover:border-link/50 hover:bg-link/10 hover:text-link',
+            )}
           >
+            <PhoneCall className="h-4 w-4" />
             Invite to callback
-          </Button>
+          </button>
         </div>
       </Card>
 
@@ -763,7 +778,7 @@ function RoleDecisionPanel({
   const toast = useToast()
   const { id: candidateId, good, maybe, no } = candidate
   const tally: Record<'good' | 'maybe' | 'no', number> = { good, maybe, no }
-  const [lastVote, setLastVote] = useState<'good' | 'maybe' | 'no' | null>(null)
+  const lastVote = useMyVote(candidateId)
 
   const teamRatings = deriveTeamRatings(candidate)
 
@@ -795,7 +810,7 @@ function RoleDecisionPanel({
             return (
               <button
                 key={o.key}
-                onClick={() => { rateCandidate(candidateId, o.key); setLastVote(o.key); toast(`Vote added: ${o.label}`) }}
+                onClick={() => { rateCandidate(candidateId, o.key); toast(`Vote added: ${o.label}`) }}
                 className={cn(
                   'flex items-center justify-between rounded-btn border-2 bg-card px-4 py-2.5 text-sm font-semibold transition-all',
                   isActive ? o.active : o.base,

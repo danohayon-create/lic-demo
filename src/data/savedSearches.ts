@@ -17,6 +17,12 @@ export interface SavedSearchFilters {
   reviewStatus: 'reviewed' | 'not_reviewed' | null
   /** Minimum scene score (1–5) derived from rating quality; null = no filter */
   sceneStarsMin: number | null
+  /** Filter to first-time applicants for this show */
+  isNewCandidateFilter: boolean | null
+  /** Filter by majority vote: 'no' = majority no-go, 'maybe' = majority maybe */
+  majoritySignal: Signal | null
+  /** 'remaining' = shortlisted + callback + offer + cast; or a specific CandidateStatus */
+  statusFilter: 'remaining' | string | null
 }
 
 export interface SavedSearch {

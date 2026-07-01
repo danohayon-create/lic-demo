@@ -39,7 +39,7 @@ import {
 } from '@/data/selection'
 
 const PIPELINE_BG_CLASS: Record<RolePipelineStatus, string> = {
-  New: 'bg-paper text-muted',
+  'To Review': 'bg-paper text-muted',
   Viewed: 'bg-paper text-muted',
   Reviewed: 'bg-paper text-muted',
   Shortlisted: 'bg-link/10 text-link',

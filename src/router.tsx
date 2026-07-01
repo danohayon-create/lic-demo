@@ -12,6 +12,7 @@ import { CastingRecap } from './studio/CastingRecap'
 import { AgencySelect } from './studio/AgencySelect'
 import { CastingSearch } from './studio/CastingSearch'
 import { SelectionConsole } from './studio/SelectionConsole'
+import { StudioTalentProfile } from './studio/StudioTalentProfile'
 import { Wall } from './studio/Wall'
 import { AppLayout } from './app/AppLayout'
 import { Discover } from './app/Discover'
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
       { path: 'agency-select',  element: <AgencySelect /> },
       { path: 'casting-search', element: <CastingSearch /> },
       { path: 'selection',      element: <SelectionConsole /> },
+      { path: 'talent/:candidateId', element: <StudioTalentProfile /> },
       { path: 'wall',           element: <Wall /> },
     ],
   },

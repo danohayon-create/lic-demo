@@ -55,8 +55,6 @@ export const LOCKED_COLUMNS = new Set<CandidateStatus>(['new'])
 /** Columns where only one candidate may be present at a time. */
 const SINGLE_OCCUPANT_COLUMNS = new Set<CandidateStatus>(['offer', 'cast'])
 
-/** Score below which a reviewed candidate is automatically a No Go. */
-const NO_GO_THRESHOLD = 60
 
 /** Weighted "Let It Cast" score (0–100) from the good/maybe/no-go tally. */
 export function candidateScore(c: Candidate): number {
@@ -604,6 +602,50 @@ export function useCandidate(candidateId: string): Candidate | undefined {
   return useSyncExternalStore(subscribe, () => state.candidates.find((c) => c.id === candidateId))
 }
 
+// ── Video-candidate performance scores ──────────────────────────────────────
+// All s17 candidates with self-tape videos get explicit high performance scores
+// (73–80) so they rank first in the "To Review" column and are easy to find.
+// They are also reassigned to mc17-c01 (Casting Team 1) in every demo preset
+// so the presenter always starts with watchable candidates.
+
+const VIDEO_PERF_SCORES: Record<string, number> = {
+  's17-1':  80, 's17-2':  78, 's17-3':  76,
+  's17-4':  79, 's17-5':  75,
+  's17-6':  80, 's17-7':  77,
+  's17-9':  76,
+  's17-25': 74, 's17-26': 75, 's17-27': 73, 's17-28': 77, 's17-29': 78,
+  's17-30': 76, 's17-31': 74,
+  's17-32': 75, 's17-33': 73, 's17-34': 76, 's17-35': 74, 's17-36': 77,
+  's17-38': 75,
+  's17-40': 76, 's17-41': 74, 's17-42': 75, 's17-43': 77, 's17-44': 73,
+  's17-46': 76, 's17-47': 74,
+}
+
+const VIDEO_CANDIDATE_IDS = new Set(Object.keys(VIDEO_PERF_SCORES))
+
+/** Returns the explicit performance score for a video candidate, or null for others. */
+export function videoPerformanceScore(candidateId: string): number | null {
+  return VIDEO_PERF_SCORES[candidateId] ?? null
+}
+
+// Session-only "my vote" memory — not persisted to localStorage, cleared on demo resets
+let myVotes: Record<string, Signal> = {}
+
+/** Deterministic pseudo-random signal for demo pre-fill (seeded by candidateId + salt). */
+function seedSignal(candidateId: string, salt: string): Signal {
+  let h = 0
+  for (const ch of candidateId + salt) h = (h * 31 + ch.charCodeAt(0)) & 0xffff
+  return h % 3 === 0 ? 'good' : h % 3 === 1 ? 'maybe' : 'no'
+}
+
+export function getMyVote(candidateId: string): Signal | null {
+  return myVotes[candidateId] ?? null
+}
+
+export function useMyVote(candidateId: string): Signal | null {
+  return useSyncExternalStore(subscribe, () => myVotes[candidateId] ?? null)
+}
+
 /** Move a candidate to a new board column. Offer/Cast allow only one occupant per role
  *  for scripted projects; for non-scripted (Contestant roles) the constraint is lifted
  *  since all teams share a common pool and cast slots are project-wide. */
@@ -628,16 +670,17 @@ export function moveCandidate(candidateId: string, status: CandidateStatus): { o
 }
 
 export function rateCandidate(candidateId: string, signal: 'good' | 'maybe' | 'no') {
+  myVotes = { ...myVotes, [candidateId]: signal }
   state = {
     ...state,
     candidates: state.candidates.map((c) => {
       if (c.id !== candidateId) return c
       const updated = { ...c, [signal]: c[signal] + 1 }
-      // Auto-sort between Reviewed / Shortlisted while the candidate hasn't been
-      // manually advanced further down the pipeline yet. A first review also
-      // moves a candidate out of the locked "New" column.
-      if (c.status === 'new' || c.status === 'no-go' || c.status === 'shortlisted') {
-        updated.status = candidateScore(updated) < NO_GO_THRESHOLD ? 'no-go' : 'shortlisted'
+      // A rating always lands the candidate in Reviewed (no-go column) — the
+      // presenter manually promotes to Shortlisted / Callback / Offer via the
+      // pipeline buttons. Rating a 'new' candidate moves them out of To Review.
+      if (c.status === 'new') {
+        updated.status = 'no-go'
       }
       return updated
     }),
@@ -683,49 +726,94 @@ export function applyScenarioPreset(scenario: 1 | 2 | 3, roleIds: string[]): voi
   const targets = state.candidates.filter((c) => roleIds.includes(c.roleId))
   const others  = state.candidates.filter((c) => !roleIds.includes(c.roleId))
 
+  // Video candidates (real audition footage) always get priority
+  const withVideo    = targets.filter((c) => Boolean(c.video))
+  const withoutVideo = targets.filter((c) => !c.video)
+  const sorted       = [...withVideo, ...withoutVideo]
+
   let updated: Candidate[]
 
   if (scenario === 1) {
-    updated = targets.map((c, i) => ({
-      ...c,
-      status: 'no-go' as CandidateStatus,
-      good:  i % 5 === 0 ? 2 : 0,
-      maybe: i % 5 === 1 ? 2 : i % 5 === 2 ? 1 : 0,
-      no:    i % 5 >= 3  ? 2 : 1,
-    }))
+    updated = sorted.map((c, i) => {
+      if (c.video) return { ...c, status: 'no-go' as CandidateStatus, good: 3, maybe: 0, no: 0 }
+      const bucket = i % 5
+      return {
+        ...c,
+        status: 'no-go' as CandidateStatus,
+        good:  bucket === 0 ? 2 : 0,
+        maybe: bucket === 1 ? 2 : bucket === 2 ? 1 : 0,
+        no:    bucket >= 3  ? 2 : 1,
+      }
+    })
   } else if (scenario === 2) {
-    updated = targets.map((c, i) => {
+    updated = sorted.map((c, i) => {
+      if (c.video) {
+        const vi = withVideo.indexOf(c)
+        if (vi <= 1) return { ...c, status: 'callback'    as CandidateStatus, good: 4, maybe: 0, no: 0 }
+        return               { ...c, status: 'shortlisted' as CandidateStatus, good: 3, maybe: 1, no: 0 }
+      }
       const bucket = i % 10
       if (bucket <= 1) return { ...c, status: 'callback'    as CandidateStatus, good: 3, maybe: 1, no: 0 }
       if (bucket <= 3) return { ...c, status: 'shortlisted' as CandidateStatus, good: 2, maybe: 1, no: 0 }
       if (bucket <= 5) return { ...c, status: 'no-go'       as CandidateStatus, good: 0, maybe: 2, no: 1 }
-      return               { ...c, status: 'no-go'          as CandidateStatus, good: 0, maybe: 0, no: 2 }
+      return                   { ...c, status: 'no-go'       as CandidateStatus, good: 0, maybe: 0, no: 2 }
     })
   } else {
-    // S3: sort by existing score descending
-    const sorted = [...targets].sort((a, b) => candidateScore(b) - candidateScore(a))
-    updated = sorted.map((c, i) => {
+    // S3: video candidates first, then by score
+    const videoSorted    = [...withVideo].sort((a, b) => candidateScore(b) - candidateScore(a))
+    const nonVideoSorted = [...withoutVideo].sort((a, b) => candidateScore(b) - candidateScore(a))
+    const finalSorted    = [...videoSorted, ...nonVideoSorted]
+    updated = finalSorted.map((c, i) => {
       if (i < 5)  return { ...c, status: 'cast'  as CandidateStatus, good: 4, maybe: 0, no: 0 }
       if (i < 20) return { ...c, status: 'offer' as CandidateStatus, good: 3, maybe: 1, no: 0 }
       return              { ...c, status: 'no-go' as CandidateStatus, good: 0, maybe: 0, no: 2 }
     })
   }
 
+  // Pre-fill myVote from the dominant signal so ratings appear highlighted in the UI
+  const nextVotes: Record<string, Signal> = { ...myVotes }
+  for (const c of updated) {
+    if (c.good > 0 && c.good >= c.maybe && c.good >= c.no)       nextVotes[c.id] = 'good'
+    else if (c.maybe > 0 && c.maybe >= c.no)                     nextVotes[c.id] = 'maybe'
+    else if (c.no > 0)                                            nextVotes[c.id] = 'no'
+  }
+  myVotes = nextVotes
   state = { ...state, candidates: [...others, ...updated], roleStatusOverrides: {} }
   persist()
   emit()
 }
 
+/** In every demo preset, video candidates are reassigned to Casting Team 1 so
+ *  the presenter can immediately watch tapes when starting the review. */
+function demoRoleId(c: Candidate): string {
+  return VIDEO_CANDIDATE_IDS.has(c.id) ? 'mc17-c01' : c.roleId
+}
+
+/** roleIds that belong to the mc17 non-scripted project — used to scope resets. */
+function isMc17Role(roleId: string): boolean {
+  return roleId.startsWith('mc17-')
+}
+
 export function resetCandidatesForDemo(roleIds: string[]): void {
-  state = {
-    ...state,
-    candidates: state.candidates.map((c, idx) => {
-      if (!roleIds.includes(c.roleId)) return c
-      const newStatus: CandidateStatus = idx % 4 === 0 ? 'no-go' : 'new'
-      return { ...c, status: newStatus, good: 0, maybe: 0, no: 0, raterVotes: undefined }
-    }),
-    roleStatusOverrides: {},
-  }
+  const nextVotes: Record<string, Signal> = {}
+  // Include video candidates from any mc17 role, even if not in the passed roleIds list,
+  // since they'll be reassigned to mc17-c01 which IS in the list.
+  const updated = state.candidates.map((c) => {
+    const isInScope = roleIds.includes(c.roleId) || (VIDEO_CANDIDATE_IDS.has(c.id) && isMc17Role(c.roleId))
+    if (!isInScope) return c
+    const n = candidateNum(c)
+    const roleId = demoRoleId(c)
+    // Top 75 → To Review (no votes, no myVote); bottom 25 → Reviewed (no-go, pre-filled votes)
+    if (n <= 75) return { ...c, roleId, status: 'new' as CandidateStatus, good: 0, maybe: 0, no: 0, raterVotes: undefined }
+    const mod = n % 3
+    const good  = mod === 0 ? 2 : 0
+    const maybe = mod === 1 ? 2 : 0
+    const no    = mod === 2 ? 2 : 1
+    nextVotes[c.id] = seedSignal(c.id, 'reset')
+    return { ...c, roleId, status: 'no-go' as CandidateStatus, good, maybe, no, raterVotes: undefined }
+  })
+  myVotes = nextVotes
+  state = { ...state, candidates: updated, roleStatusOverrides: {} }
   persist()
   emit()
 }
@@ -795,65 +883,71 @@ function candidateNum(c: Candidate): number {
 
 /** Demo preset — Step 1: initial review done. Most candidates in no-go, ~10 still in "To Review", 3 shortlisted. */
 export function setDemoStateStep1(roleIds: string[]): void {
-  state = {
-    ...state,
-    candidates: state.candidates.map((c) => {
-      if (!roleIds.includes(c.roleId)) return c
-      const n = candidateNum(c)
-      if (n >= 91) return { ...c, status: 'new', good: 0, maybe: 0, no: 0, raterVotes: undefined }
-      if (n <= 3)  return { ...c, status: 'shortlisted', good: 3, maybe: 1, no: 0, raterVotes: undefined }
-      const mod = n % 3
-      if (mod === 1) return { ...c, status: 'no-go', good: 0, maybe: 0, no: 3, raterVotes: undefined }
-      if (mod === 2) return { ...c, status: 'no-go', good: 0, maybe: 2, no: 1, raterVotes: undefined }
-      return { ...c, status: 'no-go', good: 1, maybe: 0, no: 0, raterVotes: undefined }
-    }),
-    roleStatusOverrides: {},
-  }
+  const nextVotes: Record<string, Signal> = {}
+  const updated = state.candidates.map((c) => {
+    const isInScope = roleIds.includes(c.roleId) || (VIDEO_CANDIDATE_IDS.has(c.id) && isMc17Role(c.roleId))
+    if (!isInScope) return c
+    const n = candidateNum(c)
+    const roleId = demoRoleId(c)
+    if (n >= 91) return { ...c, roleId, status: 'new' as CandidateStatus, good: 0, maybe: 0, no: 0, raterVotes: undefined }
+    nextVotes[c.id] = seedSignal(c.id, 's1')
+    if (n <= 3) return { ...c, roleId, status: 'shortlisted' as CandidateStatus, good: 3, maybe: 1, no: 0, raterVotes: undefined }
+    const mod = n % 3
+    if (mod === 1) return { ...c, roleId, status: 'no-go' as CandidateStatus, good: 0, maybe: 0, no: 3, raterVotes: undefined }
+    if (mod === 2) return { ...c, roleId, status: 'no-go' as CandidateStatus, good: 0, maybe: 2, no: 1, raterVotes: undefined }
+    return { ...c, roleId, status: 'no-go' as CandidateStatus, good: 1, maybe: 0, no: 0, raterVotes: undefined }
+  })
+  myVotes = nextVotes
+  state = { ...state, candidates: updated, roleStatusOverrides: {} }
   persist()
   emit()
 }
 
 /** Demo preset — Step 2: shortlisting in progress. ~40 candidates in Shortlisted/Callback. */
 export function setDemoStateStep2(roleIds: string[]): void {
-  state = {
-    ...state,
-    candidates: state.candidates.map((c) => {
-      if (!roleIds.includes(c.roleId)) return c
-      const n = candidateNum(c)
-      if (n >= 91) return { ...c, status: 'new', good: 0, maybe: 0, no: 0, raterVotes: undefined }
-      if (n <= 3)  return { ...c, status: 'shortlisted', good: 4, maybe: 1, no: 0, raterVotes: undefined }
-      if (n <= 33) return { ...c, status: 'shortlisted', good: 2, maybe: 1, no: 0, raterVotes: undefined }
-      if (n <= 43) return { ...c, status: 'callback', good: 3, maybe: 2, no: 0, raterVotes: undefined }
-      const mod = n % 3
-      if (mod === 1) return { ...c, status: 'no-go', good: 0, maybe: 0, no: 3, raterVotes: undefined }
-      if (mod === 2) return { ...c, status: 'no-go', good: 0, maybe: 2, no: 1, raterVotes: undefined }
-      return { ...c, status: 'no-go', good: 1, maybe: 0, no: 0, raterVotes: undefined }
-    }),
-    roleStatusOverrides: {},
-  }
+  const nextVotes: Record<string, Signal> = {}
+  const updated = state.candidates.map((c) => {
+    const isInScope = roleIds.includes(c.roleId) || (VIDEO_CANDIDATE_IDS.has(c.id) && isMc17Role(c.roleId))
+    if (!isInScope) return c
+    const n = candidateNum(c)
+    const roleId = demoRoleId(c)
+    if (n >= 91) return { ...c, roleId, status: 'new' as CandidateStatus, good: 0, maybe: 0, no: 0, raterVotes: undefined }
+    nextVotes[c.id] = seedSignal(c.id, 's2')
+    if (n <= 3)  return { ...c, roleId, status: 'shortlisted' as CandidateStatus, good: 4, maybe: 1, no: 0, raterVotes: undefined }
+    if (n <= 33) return { ...c, roleId, status: 'shortlisted' as CandidateStatus, good: 2, maybe: 1, no: 0, raterVotes: undefined }
+    if (n <= 43) return { ...c, roleId, status: 'callback' as CandidateStatus, good: 3, maybe: 2, no: 0, raterVotes: undefined }
+    const mod = n % 3
+    if (mod === 1) return { ...c, roleId, status: 'no-go' as CandidateStatus, good: 0, maybe: 0, no: 3, raterVotes: undefined }
+    if (mod === 2) return { ...c, roleId, status: 'no-go' as CandidateStatus, good: 0, maybe: 2, no: 1, raterVotes: undefined }
+    return { ...c, roleId, status: 'no-go' as CandidateStatus, good: 1, maybe: 0, no: 0, raterVotes: undefined }
+  })
+  myVotes = nextVotes
+  state = { ...state, candidates: updated, roleStatusOverrides: {} }
   persist()
   emit()
 }
 
 /** Demo preset — Step 3: final casting. 6 cast, 4 offer, rest distributed. */
 export function setDemoStateStep3(roleIds: string[]): void {
-  state = {
-    ...state,
-    candidates: state.candidates.map((c) => {
-      if (!roleIds.includes(c.roleId)) return c
-      const n = candidateNum(c)
-      if (n >= 91) return { ...c, status: 'new', good: 0, maybe: 0, no: 0, raterVotes: undefined }
-      if ([1, 4, 6, 8, 10, 12].includes(n)) return { ...c, status: 'cast', good: 5, maybe: 0, no: 0, raterVotes: undefined }
-      if ([2, 3, 5, 7].includes(n))         return { ...c, status: 'offer', good: 4, maybe: 1, no: 0, raterVotes: undefined }
-      if (n <= 18)  return { ...c, status: 'callback', good: 3, maybe: 2, no: 0, raterVotes: undefined }
-      if (n <= 45)  return { ...c, status: 'shortlisted', good: 2, maybe: 1, no: 0, raterVotes: undefined }
-      const mod = n % 3
-      if (mod === 1) return { ...c, status: 'no-go', good: 0, maybe: 0, no: 3, raterVotes: undefined }
-      if (mod === 2) return { ...c, status: 'no-go', good: 0, maybe: 2, no: 1, raterVotes: undefined }
-      return { ...c, status: 'no-go', good: 1, maybe: 0, no: 0, raterVotes: undefined }
-    }),
-    roleStatusOverrides: {},
-  }
+  const nextVotes: Record<string, Signal> = {}
+  const updated = state.candidates.map((c) => {
+    const isInScope = roleIds.includes(c.roleId) || (VIDEO_CANDIDATE_IDS.has(c.id) && isMc17Role(c.roleId))
+    if (!isInScope) return c
+    const n = candidateNum(c)
+    const roleId = demoRoleId(c)
+    if (n >= 91) return { ...c, roleId, status: 'new' as CandidateStatus, good: 0, maybe: 0, no: 0, raterVotes: undefined }
+    nextVotes[c.id] = seedSignal(c.id, 's3')
+    if ([1, 4, 6, 8, 10, 12].includes(n)) return { ...c, roleId, status: 'cast' as CandidateStatus, good: 5, maybe: 0, no: 0, raterVotes: undefined }
+    if ([2, 3, 5, 7].includes(n))         return { ...c, roleId, status: 'offer' as CandidateStatus, good: 4, maybe: 1, no: 0, raterVotes: undefined }
+    if (n <= 18)  return { ...c, roleId, status: 'callback' as CandidateStatus, good: 3, maybe: 2, no: 0, raterVotes: undefined }
+    if (n <= 45)  return { ...c, roleId, status: 'shortlisted' as CandidateStatus, good: 2, maybe: 1, no: 0, raterVotes: undefined }
+    const mod = n % 3
+    if (mod === 1) return { ...c, roleId, status: 'no-go' as CandidateStatus, good: 0, maybe: 0, no: 3, raterVotes: undefined }
+    if (mod === 2) return { ...c, roleId, status: 'no-go' as CandidateStatus, good: 0, maybe: 2, no: 1, raterVotes: undefined }
+    return { ...c, roleId, status: 'no-go' as CandidateStatus, good: 1, maybe: 0, no: 0, raterVotes: undefined }
+  })
+  myVotes = nextVotes
+  state = { ...state, candidates: updated, roleStatusOverrides: {} }
   persist()
   emit()
 }
