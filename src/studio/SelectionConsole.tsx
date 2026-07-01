@@ -26,7 +26,6 @@ import {
   RotateCcw,
   Search,
   Send,
-  Sparkles,
   Square,
   Star,
   Trash2,
@@ -75,8 +74,42 @@ const LOGLINE =
   "A detective obsessed with cold cases discovers that the prime suspect she's hunted for two decades could be her own mother."
 
 /** Shared grid template for the list view — header + rows must align exactly.
- *  checkbox · photo · talent · watch · team evaluation · spacer · score · status */
-const LIST_GRID = 'grid grid-cols-[24px_44px_220px_64px_160px_1fr_120px_140px] items-center gap-6'
+ *  checkbox · photo · talent · watch · team eval · comments · score · status · date */
+const LIST_GRID = 'grid grid-cols-[24px_48px_minmax(160px,2fr)_64px_minmax(150px,2fr)_90px_110px_140px_140px] items-center gap-6'
+
+const DEMO_COMMENTS_POOL = [
+  ['Profil très attachant, bonne histoire personnelle.', 'À rappeler pour un entretien complémentaire.'],
+  ['Bonne énergie, télégénique, réactions naturelles.'],
+  ['Technique solide — à voir en callback.', 'Manque un peu de spontanéité mais potentiel réel.'],
+  ['Passion communicative, parcours original.'],
+  ['Très bon niveau, un des profils les plus mémorables de la session.', 'Unanime côté équipe.'],
+  ['Hésitations sur la télégénicité. Vidéo à revoir.'],
+  ['Cuisine créative, identité forte. À mettre en shortlist.'],
+  ['Profil intéressant mais manque d\'expérience en compétition.'],
+  ['Grande maîtrise technique, story-telling convaincant.', 'Valider disponibilités.'],
+  ['Charisme évident, interactions naturelles avec la caméra.'],
+]
+
+/** Returns team comments for a candidate: explicit data first, fallback to seeded demo for mc17-c01. */
+function getCandidateComments(c: { id: string; roleId: string; teamComments?: string[] }): string[] {
+  if (c.teamComments && c.teamComments.length > 0) return c.teamComments
+  if (!c.roleId.startsWith('mc17-')) return []
+  let h = 0
+  for (const ch of c.id) h = (h * 31 + ch.charCodeAt(0)) & 0xffff
+  return DEMO_COMMENTS_POOL[h % DEMO_COMMENTS_POOL.length]
+}
+
+/** Deterministic submission date (1 May – 30 Jun 2026) seeded by candidate id. */
+function submissionDate(id: string): { ts: number; label: string } {
+  let h = 0
+  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) & 0xffff
+  const start = new Date('2026-05-01').getTime()
+  const end   = new Date('2026-06-30').getTime()
+  const ts    = start + (h / 0xffff) * (end - start)
+  const d     = new Date(ts)
+  const months = ['jan','fév','mars','avr','mai','juin','juil','août','sep','oct','nov','déc']
+  return { ts, label: `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}` }
+}
 
 const SIGNAL_OPTIONS: { value: Signal; label: string; dot: string }[] = [
   { value: 'good', label: 'Good match', dot: 'bg-signal-good' },
@@ -111,10 +144,8 @@ function activeFilterCount(f: SavedSearchFilters): number {
     f.experienceLevels.length +
     f.nationalities.length +
     f.languages.length +
-    (f.scoreMin != null || f.scoreMax != null ? 1 : 0) +
     (f.query.trim() ? 1 : 0) +
     (f.reviewStatus != null ? 1 : 0) +
-    (f.sceneStarsMin != null ? 1 : 0) +
     (f.isNewCandidateFilter ? 1 : 0) +
     (f.majoritySignal != null ? 1 : 0) +
     (f.statusFilter != null ? 1 : 0)
@@ -180,7 +211,8 @@ export function SelectionConsole() {
       if (filters.reviewStatus === 'reviewed' && c.good === 0 && c.maybe === 0 && c.no === 0) return false
       if (filters.reviewStatus === 'not_reviewed' && c.status !== 'new') return false
       if (filters.sceneStarsMin != null && Math.round(candidateAverageRating(c)) < filters.sceneStarsMin) return false
-      if (filters.isNewCandidateFilter && !isNewCandidate(c.id)) return false
+      if (filters.isNewCandidateFilter === true  && !isNewCandidate(c.id)) return false
+      if (filters.isNewCandidateFilter === false &&  isNewCandidate(c.id)) return false
       if (filters.statusFilter === 'remaining') {
         if (!['shortlisted', 'callback', 'offer', 'cast'].includes(c.status)) return false
       } else if (filters.statusFilter === 'finalized') {
@@ -224,18 +256,18 @@ export function SelectionConsole() {
   const [saveSearchOpen, setSaveSearchOpen] = useState(false)
   const [watchQueue, setWatchQueue] = useState<Candidate[] | null>(null)
 
-  // Feature 1: AI Priority sort
-  const [aiSort, setAiSort] = useState(false)
+  // Feature 1: AI Priority sort (kept for sort logic, button removed)
+  const [aiSort] = useState(false)
 
   // Top Talent filter
   const [topTalentActive, setTopTalentActive] = useState(false)
   const [topTalentPct, setTopTalentPct] = useState(30)
   const [topTalentOpen, setTopTalentOpen] = useState(false)
 
-  // List column sort (score / status) — default: score desc
-  const [listSort, setListSort] = useState<{ col: 'score' | 'status'; dir: 'asc' | 'desc' } | null>({ col: 'score', dir: 'desc' })
+  // List column sort (score / status / date) — default: score desc
+  const [listSort, setListSort] = useState<{ col: 'score' | 'status' | 'date'; dir: 'asc' | 'desc' } | null>({ col: 'score', dir: 'desc' })
 
-  const toggleListSort = (col: 'score' | 'status') => {
+  const toggleListSort = (col: 'score' | 'status' | 'date') => {
     setListSort((cur) => {
       if (cur?.col !== col) return { col, dir: 'desc' }
       if (cur.dir === 'desc') return { col, dir: 'asc' }
@@ -276,6 +308,7 @@ export function SelectionConsole() {
       base = [...base].sort((a, b) => {
         const mul = listSort.dir === 'desc' ? -1 : 1
         if (listSort.col === 'score') return mul * (compositeScore(a) - compositeScore(b))
+        if (listSort.col === 'date')  return mul * (submissionDate(a.id).ts - submissionDate(b.id).ts)
         return mul * ((STATUS_WEIGHT[a.status] ?? 0) - (STATUS_WEIGHT[b.status] ?? 0))
       })
     }
@@ -513,12 +546,6 @@ export function SelectionConsole() {
             <ViewTab active={view === 'kanban'} icon={<LayoutGrid className="h-3.5 w-3.5" />} label="Talent Flow" onClick={() => setView('kanban')} />
             <ViewTab active={view === 'wall'} icon={<Grid2x2 className="h-3.5 w-3.5" />} label="Wall" onClick={() => { setView('wall'); setColumnFocus(null) }} />
           </div>
-          {aiSort && (
-            <span className="flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-1 text-[11px] font-semibold text-purple-700">
-              <Sparkles className="h-3 w-3" />
-              Smart Sort
-            </span>
-          )}
           {topTalentActive && (
             <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
               <Wand2 className="h-3 w-3" />
@@ -528,17 +555,6 @@ export function SelectionConsole() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1">
-            <Button
-              variant={aiSort ? 'primary' : 'secondary'}
-              size="sm"
-              icon={<Sparkles className="h-3.5 w-3.5" />}
-              onClick={() => setAiSort((v) => !v)}
-            >
-              Smart Sort
-            </Button>
-            <SmartSortInfoTooltip />
-          </span>
           <span className="relative flex items-center gap-1">
             <Button
               variant="secondary"
@@ -550,7 +566,7 @@ export function SelectionConsole() {
                 else setTopTalentOpen((v) => !v)
               }}
             >
-              Top Talent
+              Performance Graph Selection
             </Button>
             {topTalentActive && (
               <button
@@ -618,7 +634,7 @@ export function SelectionConsole() {
       </div>
 
       <p className="text-sm text-muted">
-        {filteredCandidates.length} of {allCandidates.length} candidates ·{' '}
+        {sortedCandidates.length} of {allCandidates.length} candidates ·{' '}
         {selectMode
           ? 'Click cards to select them, then change their status or message them in bulk.'
           : view === 'kanban'
@@ -866,7 +882,7 @@ const ASSISTANT_STEPS: {
     playlists: [
       { label: 'All "To Review"', filters: { reviewStatus: 'not_reviewed' } },
       { label: 'Top 30% not reviewed', filters: { reviewStatus: 'not_reviewed' }, topTalent: { active: true, pct: 30 } },
-      { label: '⭐ New applicants', filters: { reviewStatus: 'not_reviewed', isNewCandidateFilter: true } },
+      { label: '⭐ New applicants not reviewed', filters: { reviewStatus: 'not_reviewed', isNewCandidateFilter: true } },
     ],
   },
   {
@@ -999,20 +1015,12 @@ function FilterBar({
           />
         </FilterDropdown>
 
-        <FilterDropdown label="Rating" count={filters.signals.length}>
-          <CheckList
-            options={SIGNAL_OPTIONS.map((o) => ({ value: o.value, label: o.label, dot: o.dot }))}
-            selected={filters.signals}
-            onToggle={(v) => toggleIn('signals', v)}
-          />
-        </FilterDropdown>
-
-        <FilterDropdown label="Review status" count={filters.reviewStatus != null ? 1 : 0}>
-          <div className="flex flex-col gap-0.5 p-1">
+        <FilterDropdown label="Rating" count={filters.signals.length + (filters.reviewStatus != null ? 1 : 0)}>
+          <div className="flex flex-col gap-1 p-1">
+            <p className="px-2 pb-0.5 pt-1 text-[10px] font-bold uppercase tracking-label text-muted">Scope</p>
             {([
-              { value: null,           label: 'All applicants' },
-              { value: 'reviewed',     label: 'Reviewed — has a note' },
-              { value: 'not_reviewed', label: 'Not reviewed — new' },
+              { value: null,       label: 'All Candidates' },
+              { value: 'reviewed', label: 'Not reviewed' },
             ] as const).map(({ value, label }) => (
               <button
                 key={String(value)}
@@ -1029,54 +1037,13 @@ function FilterBar({
                 {label}
               </button>
             ))}
-          </div>
-        </FilterDropdown>
-
-        <FilterDropdown label="Scene score" count={filters.sceneStarsMin != null ? 1 : 0}>
-          <div className="flex flex-col gap-2 p-2">
-            <p className="text-xs text-muted">Minimum scene analysis rating</p>
-            <div className="flex gap-1.5">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => onFilters({ ...filters, sceneStarsMin: filters.sceneStarsMin === n ? null : n })}
-                  className={cn(
-                    'flex h-8 w-8 items-center justify-center rounded-btn border text-sm font-bold transition-all',
-                    filters.sceneStarsMin != null && n <= filters.sceneStarsMin
-                      ? 'border-gold bg-gold/20 text-[#8A6D00]'
-                      : 'border-line bg-paper text-muted hover:border-gold/60',
-                  )}
-                >
-                  {n}★
-                </button>
-              ))}
-            </div>
-            {filters.sceneStarsMin != null && (
-              <p className="text-[11px] text-muted">{filters.sceneStarsMin}+ stars minimum</p>
-            )}
-          </div>
-        </FilterDropdown>
-
-        <FilterDropdown label="Score" count={filters.scoreMin != null || filters.scoreMax != null ? 1 : 0}>
-          <div className="flex flex-col gap-2 p-2">
-            <p className="text-xs text-muted">Weighted Let It Cast score (0–100)</p>
-            <div className="flex items-center gap-2">
-              <TextInput
-                type="number"
-                placeholder="Min"
-                value={filters.scoreMin ?? ''}
-                onChange={(e) => onFilters({ ...filters, scoreMin: e.target.value === '' ? null : Number(e.target.value) })}
-                className="w-20"
-              />
-              <span className="text-muted">–</span>
-              <TextInput
-                type="number"
-                placeholder="Max"
-                value={filters.scoreMax ?? ''}
-                onChange={(e) => onFilters({ ...filters, scoreMax: e.target.value === '' ? null : Number(e.target.value) })}
-                className="w-20"
-              />
-            </div>
+            <div className="my-1 border-t border-line" />
+            <p className="px-2 pb-0.5 text-[10px] font-bold uppercase tracking-label text-muted">Signal</p>
+            <CheckList
+              options={SIGNAL_OPTIONS.map((o) => ({ value: o.value, label: o.label, dot: o.dot }))}
+              selected={filters.signals}
+              onToggle={(v) => toggleIn('signals', v)}
+            />
           </div>
         </FilterDropdown>
 
@@ -1088,6 +1055,31 @@ function FilterBar({
             onSelectAll={() => onFilters({ ...filters, reviewerIds: team.map((m) => m.id) })}
             onClearAll={() => onFilters({ ...filters, reviewerIds: [] })}
           />
+        </FilterDropdown>
+
+        <FilterDropdown label="New candidates" count={filters.isNewCandidateFilter != null ? 1 : 0}>
+          <div className="flex flex-col gap-0.5 p-1">
+            {([
+              { value: null,  label: 'All candidates' },
+              { value: true,  label: '⭐ New candidates' },
+              { value: false, label: 'Cast in prev. season' },
+            ] as const).map(({ value, label }) => (
+              <button
+                key={String(value)}
+                onClick={() => onFilters({ ...filters, isNewCandidateFilter: value })}
+                className={cn(
+                  'flex items-center gap-2 rounded-btn px-3 py-2 text-left text-sm transition-colors hover:bg-ink/5',
+                  filters.isNewCandidateFilter === value ? 'font-semibold text-ink' : 'text-muted',
+                )}
+              >
+                <span className={cn(
+                  'h-2 w-2 rounded-full border',
+                  filters.isNewCandidateFilter === value ? 'border-ink bg-ink' : 'border-muted bg-transparent',
+                )} />
+                {label}
+              </button>
+            ))}
+          </div>
         </FilterDropdown>
 
         <FilterDropdown label="Talent criteria" count={filters.genders.length + filters.experienceLevels.length + filters.nationalities.length + filters.languages.length}>
@@ -1457,36 +1449,14 @@ function TopTalentInfoTooltip() {
   )
 }
 
-function SmartSortInfoTooltip() {
-  const [visible, setVisible] = useState(false)
-  return (
-    <span className="relative inline-flex">
-      <button
-        onMouseEnter={() => setVisible(true)}
-        onMouseLeave={() => setVisible(false)}
-        className="flex h-5 w-5 items-center justify-center text-muted/50 hover:text-muted"
-        aria-label="Smart Sort info"
-      >
-        <Info className="h-3.5 w-3.5" />
-      </button>
-      {visible && (
-        <span className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-btn bg-ink px-3 py-2 text-[11px] leading-relaxed text-white shadow-lg">
-          <span className="absolute bottom-full right-2 h-0 w-0 border-x-4 border-b-4 border-x-transparent border-b-ink" />
-          Sorts applicants by pipeline stage first (Cast → Callback → New → No go), then by Performance Score within each stage. Activate to surface the most promising profiles instantly.
-        </span>
-      )}
-    </span>
-  )
-}
-
 function SortButton({
   col,
   listSort,
   onToggle,
 }: {
-  col: 'score' | 'status'
-  listSort: { col: 'score' | 'status'; dir: 'asc' | 'desc' } | null
-  onToggle?: (col: 'score' | 'status') => void
+  col: 'score' | 'status' | 'date'
+  listSort: { col: 'score' | 'status' | 'date'; dir: 'asc' | 'desc' } | null
+  onToggle?: (col: 'score' | 'status' | 'date') => void
 }) {
   const active = listSort?.col === col
   const dir = active ? listSort!.dir : null
@@ -1538,10 +1508,11 @@ function ListView({
   compareMode?: boolean
   compareIds?: Set<string>
   onToggleCompare?: (id: string) => void
-  listSort?: { col: 'score' | 'status'; dir: 'asc' | 'desc' } | null
-  onToggleListSort?: (col: 'score' | 'status') => void
+  listSort?: { col: 'score' | 'status' | 'date'; dir: 'asc' | 'desc' } | null
+  onToggleListSort?: (col: 'score' | 'status' | 'date') => void
 }) {
   const navigate = useNavigate()
+  const [commentPopup, setCommentPopup] = useState<string | null>(null)
   if (candidates.length === 0) {
     return (
       <div className="rounded-card border border-dashed border-line py-16 text-center text-sm text-muted">
@@ -1575,15 +1546,19 @@ function ListView({
         <span className="col-span-2 text-[11px] font-bold uppercase tracking-wide text-muted">Talent</span>
         <span className="text-center text-[11px] font-bold uppercase tracking-wide text-muted">Watch</span>
         <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Team evaluation</span>
-        <span />
+        <span className="text-center text-[11px] font-bold uppercase tracking-wide text-muted">Team Comments</span>
         <span className="flex items-center justify-center gap-1">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Performance Score</span>
+          <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Performance Signal</span>
           <ListInfoTooltip text="Composite score: current casting votes (Good ×2, Maybe ×1, No go −1) weighted ×3, combined with historical performance across all past castings weighted ×1. Divided by 4 for the final score." />
           <SortButton col="score" listSort={listSort ?? null} onToggle={onToggleListSort} />
         </span>
         <span className="flex items-center justify-end gap-1">
           <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Status</span>
           <SortButton col="status" listSort={listSort ?? null} onToggle={onToggleListSort} />
+        </span>
+        <span className="flex items-center justify-center gap-1">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-muted">Date of submission</span>
+          <SortButton col="date" listSort={listSort ?? null} onToggle={onToggleListSort} />
         </span>
       </div>
 
@@ -1596,8 +1571,9 @@ function ListView({
         const compareSelected = compareIds.has(c.id)
         // Historical score for unreviewed candidates
         const histScore = historicalScore(c)
-        // Comment bubble count = number of team members who rated
-        const commentCount = teamRatings.length
+        // Team comments
+        const comments = getCandidateComments(c)
+        const commentCount = comments.length
         // Majority vote label
         const totalVotes = c.good + c.maybe + c.no
         const majorityLabel = totalVotes > 0
@@ -1652,9 +1628,10 @@ function ListView({
               </p>
               <button
                 onClick={(e) => { e.stopPropagation(); navigate(`/studio/talent/${c.id}`) }}
-                className="block max-w-full truncate text-left text-sm font-semibold text-link hover:underline"
+                className="flex max-w-full items-center gap-1 truncate text-left text-sm font-semibold text-link hover:underline"
               >
-                {c.name}
+                {isNewCandidate(c.id) && <span className="shrink-0 text-gold">⭐</span>}
+                <span className="truncate">{c.name}</span>
               </button>
               <p className="truncate text-[11px] text-muted">{c.age} y/o · {c.city}</p>
             </div>
@@ -1687,16 +1664,41 @@ function ListView({
               ))}
             </div>
 
-            {/* comment bubble */}
-            <div className="flex items-center justify-center">
-              {commentCount > 0 && (
-                <span className="flex h-6 min-w-[24px] items-center justify-center gap-0.5 rounded-full bg-link/10 px-1.5 text-[11px] font-bold text-link">
+            {/* team comments bubble + popup */}
+            <div className="relative flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              {commentCount > 0 ? (
+                <button
+                  onClick={() => setCommentPopup(commentPopup === c.id ? null : c.id)}
+                  className="flex h-7 min-w-[28px] items-center justify-center gap-0.5 rounded-full bg-link/10 px-2 text-[11px] font-bold text-link hover:bg-link/20 transition-colors"
+                >
                   💬 {commentCount}
-                </span>
+                </button>
+              ) : (
+                <span className="text-[10px] text-muted/40">—</span>
+              )}
+              {commentPopup === c.id && commentCount > 0 && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setCommentPopup(null)} />
+                  <div className="absolute left-1/2 top-full z-50 mt-2 w-72 -translate-x-1/2 rounded-card border border-line bg-card p-3 shadow-card-hover">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-[11px] font-bold uppercase tracking-label text-muted">Team Comments</p>
+                      <button onClick={() => setCommentPopup(null)} className="text-muted hover:text-ink">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {comments.map((comment, idx) => (
+                        <p key={idx} className="rounded-btn bg-paper p-2 text-xs text-ink leading-relaxed">
+                          {comment}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
-            {/* score */}
+            {/* performance signal score */}
             <div className="flex flex-col items-center gap-0.5 text-center">
               {reviewed ? (
                 <>
@@ -1719,6 +1721,11 @@ function ListView({
             {/* status — editable */}
             <div className="text-right" onClick={(e) => e.stopPropagation()}>
               <StatusEditor candidate={c} />
+            </div>
+
+            {/* date of submission */}
+            <div className="text-center">
+              <span className="text-xs text-muted">{submissionDate(c.id).label}</span>
             </div>
           </div>
         )

@@ -42,7 +42,13 @@ function historicalScore(c: Candidate): number {
   return 40 + (seed * 13) % 45
 }
 
-/** Compute LIC score from two families: current casting (50%) + historical (50%). */
+/** Compute Performance Signal from two families: current casting (50%) + historical (50%).
+ *
+ *  Key Dimensions are OPTIONAL and can only boost (or slightly reduce) the base team rating:
+ *  - Each YES  → +3 bonus points (max +15 across 5 axes)
+ *  - Each NO   → −1 penalty point
+ *  - Not rated → 0 effect; base score used as-is
+ */
 function computeLicScore(
   candidate: Candidate,
   positiveAxes: number,
@@ -50,10 +56,13 @@ function computeLicScore(
 ): { ratingScore: number; sceneScore: number; currentScore: number; pastScore: number; licScore: number; sceneRated: boolean } {
   const ratingScore = candidateScore(candidate)
   const sceneRated = ratedAxes > 0
-  const sceneScore = sceneRated ? Math.round((positiveAxes / SCENE_AXES.length) * 100) : 0
+  const negativeAxes = ratedAxes - positiveAxes
+  const bonus = positiveAxes * 3 - negativeAxes * 1
   const currentScore = sceneRated
-    ? Math.round(ratingScore * 0.6 + sceneScore * 0.4)
+    ? Math.min(100, Math.max(0, ratingScore + bonus))
     : ratingScore
+  // sceneScore = visual representation of the bonus applied
+  const sceneScore = bonus
   const pastScore = historicalScore(candidate)
   const licScore = Math.round(currentScore * 0.5 + pastScore * 0.5)
   return { ratingScore, sceneScore, currentScore, pastScore, licScore, sceneRated }
@@ -140,17 +149,6 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
               <button onClick={() => navigate(`/studio/talent/${candidate.id}`)} className="text-link hover:underline">{candidate.name}</button>{' '}
               <span className="text-muted">as</span>{' '}
               <span className="text-signal-no">{role.name}</span>
-              <span className="flex items-center gap-1.5">
-                <Tag tone="gold" className="font-semibold" icon={<span>⚡</span>}>
-                  {scores.licScore} LIC score
-                </Tag>
-                <button
-                  onClick={() => setShowScoreModal(true)}
-                  className="flex h-6 items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2 text-[11px] font-semibold text-[#8A6D00] hover:bg-gold/20 transition-colors"
-                >
-                  How? <Info className="h-3 w-3" />
-                </button>
-              </span>
             </h1>
             <p className="mt-1 text-sm text-muted">
               {candidate.age} y/o · {candidate.city} · {candidates.length} applicants for this role
@@ -202,7 +200,7 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
       )}
 
       {/* Let it Cast Intelligence — full width, above player */}
-      <LICIntelligenceCard candidate={candidate} totalCandidates={candidates.length} licScore={scores.licScore} />
+      <LICIntelligenceCard candidate={candidate} totalCandidates={candidates.length} licScore={scores.licScore} onShowModal={() => setShowScoreModal(true)} />
 
       {/* player + decision */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -241,6 +239,7 @@ function ScoreBreakdownModal({
 }) {
   const { ratingScore, sceneScore, currentScore, pastScore, licScore, sceneRated } = scores
   const positiveAxes = Object.values(sceneToggles).filter((v) => v === true).length
+  const ratedAxes    = Object.values(sceneToggles).filter((v) => v !== null).length
 
   const historyEntries = [
     { show: 'MAFS AU',         result: 'Cast',        pts: 100 },
@@ -277,7 +276,7 @@ function ScoreBreakdownModal({
 
           {/* Formula intro */}
           <p className="text-xs text-muted leading-relaxed">
-            The LIC score is a composite of two equally weighted families: the <strong className="text-ink">current casting evaluation</strong> and the applicant's <strong className="text-ink">historical performance</strong> across past shows.
+            The <strong className="text-ink">Performance Signal</strong> is a composite of two equally weighted families: the <strong className="text-ink">current casting evaluation</strong> and the applicant's <strong className="text-ink">historical performance</strong> across past shows.
           </p>
 
           {/* Family 1 — Current Casting */}
@@ -285,50 +284,50 @@ function ScoreBreakdownModal({
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-label text-link">① Current Casting</p>
-                <p className="text-[11px] text-muted">Weight: 50% of LIC score</p>
+                <p className="text-[11px] text-muted">Weight: 50% of Performance Signal</p>
               </div>
               <span className="rounded-btn bg-link/10 px-2.5 py-1 text-sm font-bold text-link">{currentScore}/100</span>
             </div>
 
             {/* Rating sub-row */}
             <div className="flex items-center gap-2 mb-2">
-              <span className="w-28 shrink-0 text-[11px] text-muted">Team rating <span className="text-[10px]">×60%</span></span>
+              <span className="w-28 shrink-0 text-[11px] text-muted">Team rating (base)</span>
               <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-line">
                 <div className="absolute inset-y-0 left-0 rounded-full bg-signal-good transition-all" style={{ width: `${ratingScore}%` }} />
               </div>
               <span className="w-8 text-right text-xs font-semibold text-ink">{ratingScore}</span>
             </div>
 
-            {/* Scene analysis sub-row */}
+            {/* Key Dimensions sub-row */}
             <div className="flex items-center gap-2">
-              <span className="w-28 shrink-0 text-[11px] text-muted">Scene analysis <span className="text-[10px]">×40%</span></span>
+              <span className="w-28 shrink-0 text-[11px] text-muted">Key dimensions <span className="text-[10px]">(optional)</span></span>
               <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-line">
                 <div
-                  className={cn('absolute inset-y-0 left-0 rounded-full transition-all', sceneRated ? 'bg-gold' : 'bg-line/50')}
-                  style={{ width: sceneRated ? `${sceneScore}%` : '0%' }}
+                  className={cn('absolute inset-y-0 left-0 rounded-full transition-all', sceneRated ? (sceneScore >= 0 ? 'bg-signal-good' : 'bg-signal-no') : 'bg-line/50')}
+                  style={{ width: sceneRated ? `${Math.min(100, Math.abs(sceneScore) / 15 * 100)}%` : '0%' }}
                 />
               </div>
-              <span className="w-8 text-right text-xs font-semibold text-ink">
-                {sceneRated ? sceneScore : <span className="text-muted">—</span>}
+              <span className={cn('w-8 text-right text-xs font-semibold', sceneRated ? (sceneScore >= 0 ? 'text-signal-good' : 'text-signal-no') : 'text-muted')}>
+                {sceneRated ? (sceneScore >= 0 ? `+${sceneScore}` : sceneScore) : '—'}
               </span>
             </div>
 
             {!sceneRated && (
               <p className="mt-2 text-[11px] text-muted italic">
-                Complete Scene Analysis axes to include this factor.
+                Key dimensions not yet rated — base team rating used.
               </p>
             )}
             {sceneRated && (
               <p className="mt-2 text-[11px] text-muted">
-                {positiveAxes}/{SCENE_AXES.length} axes rated positive
+                {positiveAxes} YES (+{positiveAxes * 3} pts) · {ratedAxes - positiveAxes} NO (−{(ratedAxes - positiveAxes) * 1} pts) → bonus {sceneScore >= 0 ? '+' : ''}{sceneScore}
               </p>
             )}
 
             {/* Formula */}
             <div className="mt-3 rounded-btn bg-link/5 px-3 py-1.5 text-[11px] font-mono text-link">
               {sceneRated
-                ? `(${ratingScore} × 60%) + (${sceneScore} × 40%) = ${currentScore}`
-                : `${ratingScore} × 100% = ${currentScore} (scene not yet rated)`}
+                ? `${ratingScore} + (${sceneScore >= 0 ? '+' : ''}${sceneScore} key dims bonus) = ${currentScore}`
+                : `${ratingScore} (no key dimensions rated)`}
             </div>
           </div>
 
@@ -337,7 +336,7 @@ function ScoreBreakdownModal({
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-label text-[#8A6D00]">② Historical Performance</p>
-                <p className="text-[11px] text-muted">Weight: 50% of LIC score</p>
+                <p className="text-[11px] text-muted">Weight: 50% of Performance Signal</p>
               </div>
               <span className="rounded-btn bg-gold/15 px-2.5 py-1 text-sm font-bold text-[#8A6D00]">{pastScore}/100</span>
             </div>
@@ -367,7 +366,7 @@ function ScoreBreakdownModal({
           {/* Combined */}
           <div className="flex items-center justify-between rounded-xl bg-ink px-5 py-3.5">
             <div>
-              <p className="text-xs font-bold uppercase tracking-label text-white/60">LIC Score (combined)</p>
+              <p className="text-xs font-bold uppercase tracking-label text-white/60">Performance Signal (combined)</p>
               <p className="text-[11px] font-mono text-white/50 mt-0.5">
                 ({currentScore} × 50%) + ({pastScore} × 50%)
               </p>
@@ -412,9 +411,10 @@ function InfoTooltip({ text }: { text: string }) {
 
 /* ── Let it Cast Intelligence (full-width) ─────────────────────────────────── */
 
-function LICIntelligenceCard({ totalCandidates, licScore }: { candidate?: Candidate; totalCandidates: number; licScore: number }) {
+function LICIntelligenceCard({ totalCandidates, licScore, onShowModal }: { candidate?: Candidate; totalCandidates: number; licScore: number; onShowModal?: () => void }) {
   const rank = Math.max(1, Math.round((100 - licScore) / 100 * totalCandidates * 0.8))
   const topPct = Math.round((rank / totalCandidates) * 100)
+  const signalColor = licScore >= 75 ? 'text-signal-good' : licScore >= 50 ? 'text-[#8A6D00]' : 'text-signal-no'
 
   const whyTags = licScore >= 75
     ? ['High watchability', 'Strong charisma', 'Rare profile']
@@ -434,12 +434,35 @@ function LICIntelligenceCard({ totalCandidates, licScore }: { candidate?: Candid
         The model improves continuously as your team reviews more casting tapes.
       </p>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        {/* Performance Signal */}
+        <div className="flex items-center gap-3 rounded-btn bg-gold/8 px-3 py-2.5">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1">
+              <p className="text-[11px] font-semibold uppercase tracking-label text-muted">Performance Signal</p>
+              <InfoTooltip text="Composite score (0–100) combining current casting team votes (Good ×2, Maybe ×1, No go −1) weighted at 50%, plus historical performance across all past castings weighted at 50%. Updates live as your team reviews tapes." />
+            </div>
+            <div className="flex items-end gap-2 mt-1">
+              <p className={`text-3xl font-bold leading-none ${signalColor}`}>{licScore}</p>
+              <p className="text-[10px] text-muted pb-0.5">/ 100</p>
+            </div>
+            {onShowModal && (
+              <button
+                onClick={onShowModal}
+                className="mt-1.5 flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[11px] font-semibold text-[#8A6D00] hover:bg-gold/20 transition-colors"
+              >
+                How? <Info className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Performance Graph */}
         <div className="flex items-center gap-3 rounded-btn bg-link/5 px-3 py-2.5">
           <TrendingUp className="h-5 w-5 shrink-0 text-link" />
           <div className="min-w-0">
             <div className="flex items-center gap-1">
-              <p className="text-xs text-muted">Predicted ranking</p>
+              <p className="text-xs text-muted">Performance Graph</p>
               <InfoTooltip text="Estimated position among all submissions for this role. Combines team ratings, AI scene analysis scores, and historical casting performance across past seasons. Updated in real time as your team votes." />
             </div>
             <p className="text-sm font-bold text-ink">
@@ -448,6 +471,7 @@ function LICIntelligenceCard({ totalCandidates, licScore }: { candidate?: Candid
           </div>
         </div>
 
+        {/* Why surfaced */}
         <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-label text-muted">Why surfaced</p>
           <div className="flex flex-wrap gap-1.5">
@@ -459,6 +483,7 @@ function LICIntelligenceCard({ totalCandidates, licScore }: { candidate?: Candid
           </div>
         </div>
 
+        {/* Similar Talent */}
         <div>
           <div className="mb-1.5 flex items-center gap-1">
             <p className="text-[11px] font-semibold uppercase tracking-label text-muted">Similar Talent</p>
@@ -824,11 +849,11 @@ function RoleDecisionPanel({
         </div>
       </Card>
 
-      {/* ② Scene Analysis */}
+      {/* ② Key dimensions */}
       <Card className="flex flex-col gap-3">
         <div className="flex items-center gap-1.5">
-          <span className="tech-label">Scene Analysis</span>
-          <InfoTooltip text="For each axis below, optionally indicate whether the talent demonstrates this quality. Click once to mark Yes (green), again for No (red), again to clear. Stars update automatically and feed into the LIC score." />
+          <span className="tech-label">Key dimensions (optional)</span>
+          <InfoTooltip text="For each axis below, optionally indicate whether the talent demonstrates this quality. Click once to mark Yes (green), again for No (red), again to clear. Stars update automatically and feed into the Performance Signal." />
         </div>
         <ul className="flex flex-col gap-2">
           {SCENE_AXES.map((axis) => {

@@ -117,7 +117,7 @@ const ANALYSIS_STEPS_NON_SCRIPTED_VIDEO = [
 
 /** The casting workflow labels, indexed by format. */
 const WORKFLOW_STEPS: Record<'scripted' | 'non_scripted', string[]> = {
-  scripted:     ['Document', 'Analyse', 'Roles',      'Format', 'Publish'],
+  scripted:     ['Document', 'Analyse', 'Roles',      'Format', 'Publish', 'Match'],
   non_scripted: ['Brief',    'Analyse', 'Contestants', 'Format', 'Publish', 'Match'],
 }
 
@@ -234,8 +234,8 @@ export function NewCasting() {
       setCastingFormat(null)
     } else if (step === 3) {
       setStep(1) // skip step 2 (auto-advanced)
-    } else if (step === 6 && castingFormat === 'non_scripted') {
-      // from recap, back goes to publish
+    } else if (step === 6) {
+      // from match recap, back goes to publish
       setStep(5)
     } else {
       setStep((s) => s - 1)
@@ -275,7 +275,8 @@ export function NewCasting() {
     if (s <= 2) return 'Import your project material'
     if (s === 3) return 'Review & configure roles'
     if (s === 4) return 'Choose audition format'
-    return 'Publish your casting'
+    if (s === 5) return 'Publish your casting'
+    return 'Launch matching'
   }
 
   if (castingFormat === null) {
@@ -298,7 +299,7 @@ export function NewCasting() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0">
-          <span className="tech-label">New casting · {castingFormat === 'non_scripted' ? 'Non-scripted' : 'Scripted'}</span>
+          <span className="tech-label">New casting · {castingFormat === 'non_scripted' ? 'Unscripted' : 'Scripted'}</span>
           <h1 className="text-xl font-bold tracking-tight text-ink">{headingFor(step)}</h1>
         </div>
       </div>
@@ -1293,14 +1294,14 @@ function StepFormatChoice({
             <Users className="h-6 w-6" />
           </span>
           <div>
-            <p className="text-base font-bold text-ink">Non-scripted</p>
+            <p className="text-base font-bold text-ink">Unscripted</p>
             <p className="mt-1 text-sm font-medium text-muted">Reality TV · Flow · Competition</p>
           </div>
           <p className="text-sm leading-relaxed text-muted">
             Contestant-based casting with numbered slots. Perfect for Big Brother, Survivor, MasterChef, MAFS — define how many contestants you need and find the best candidates.
           </p>
           <span className="mt-auto inline-flex items-center gap-1.5 text-xs font-semibold text-ink">
-            Start non-scripted casting <ArrowRight className="h-3.5 w-3.5" />
+            Start Unscripted casting <ArrowRight className="h-3.5 w-3.5" />
           </span>
         </button>
       </div>
@@ -1821,6 +1822,177 @@ function StepPublishNonScripted({
 const NS_SLOT_IDS = ['mc17-c01','mc17-c02','mc17-c03','mc17-c04','mc17-c05',
                      'mc17-c06','mc17-c07','mc17-c08','mc17-c09','mc17-c10']
 
+export type SlotCriteria = {
+  gender: string[]
+  ageMin: string
+  ageMax: string
+  languages: string[]
+  location: string
+  skills: string[]
+  experienceLevel: string
+  availability: string
+}
+
+export const EMPTY_CRITERIA: SlotCriteria = {
+  gender: [], ageMin: '', ageMax: '', languages: [], location: '',
+  skills: [], experienceLevel: '', availability: '',
+}
+
+const GENDER_OPTIONS   = ['Female', 'Male', 'Non-binary', 'Any']
+const LANGUAGE_OPTIONS = ['English', 'French', 'Spanish', 'Arabic', 'Mandarin', 'Hindi', 'Portuguese', 'Italian', 'German', 'Japanese']
+const SKILL_OPTIONS    = ['Home Cook', 'Professional Chef', 'Pastry', 'BBQ', 'Vegan', 'Baking', 'International Cuisine']
+const EXPERIENCE_OPTS  = ['Beginner', 'Amateur', 'Semi-pro', 'Professional']
+const AVAILABILITY_OPTS = ['Full availability', 'Weekends only', 'Flexible']
+
+export function criteriaChips(c: SlotCriteria): string[] {
+  const chips: string[] = []
+  if (c.gender.length)       chips.push(...c.gender)
+  if (c.ageMin || c.ageMax)  chips.push(`${c.ageMin || '?'}–${c.ageMax || '?'} y/o`)
+  if (c.languages.length)    chips.push(...c.languages)
+  if (c.location)            chips.push(c.location)
+  if (c.skills.length)       chips.push(...c.skills)
+  if (c.experienceLevel)     chips.push(c.experienceLevel)
+  if (c.availability)        chips.push(c.availability)
+  return chips
+}
+
+export function SlotCriteriaModal({
+  slotLabel,
+  initial,
+  onSave,
+  onClose,
+}: {
+  slotLabel: string
+  initial: SlotCriteria
+  onSave: (c: SlotCriteria) => void
+  onClose: () => void
+}) {
+  const [draft, setDraft] = useState<SlotCriteria>(initial)
+
+  const toggleArr = (field: keyof SlotCriteria, val: string) => {
+    const cur = draft[field] as string[]
+    setDraft({ ...draft, [field]: cur.includes(val) ? cur.filter((v) => v !== val) : [...cur, val] })
+  }
+
+  const chip = (active: boolean) =>
+    cn('rounded-full border px-3 py-1 text-xs font-semibold transition-colors cursor-pointer select-none',
+      active ? 'border-ink bg-ink text-white' : 'border-line bg-paper text-muted hover:border-ink/40 hover:text-ink')
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="flex w-full max-w-lg flex-col gap-4 rounded-card bg-card p-6 shadow-card-hover"
+        style={{ maxHeight: '90vh', overflowY: 'auto' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold text-ink">Edit criteria — {slotLabel}</p>
+            <p className="text-xs text-muted">Define the talent profile for this slot</p>
+          </div>
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-ink/5 hover:text-ink">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Gender */}
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-label text-muted">Gender</p>
+          <div className="flex flex-wrap gap-2">
+            {GENDER_OPTIONS.map((g) => (
+              <span key={g} className={chip(draft.gender.includes(g))} onClick={() => toggleArr('gender', g)}>{g}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Age range */}
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-label text-muted">Age range</p>
+          <div className="flex items-center gap-3">
+            <input
+              type="number" placeholder="Min" value={draft.ageMin}
+              onChange={(e) => setDraft({ ...draft, ageMin: e.target.value })}
+              className="w-24 rounded-btn border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ink"
+            />
+            <span className="text-muted">–</span>
+            <input
+              type="number" placeholder="Max" value={draft.ageMax}
+              onChange={(e) => setDraft({ ...draft, ageMax: e.target.value })}
+              className="w-24 rounded-btn border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ink"
+            />
+          </div>
+        </div>
+
+        {/* Language */}
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-label text-muted">Language</p>
+          <div className="flex flex-wrap gap-2">
+            {LANGUAGE_OPTIONS.map((l) => (
+              <span key={l} className={chip(draft.languages.includes(l))} onClick={() => toggleArr('languages', l)}>{l}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Location */}
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-label text-muted">Location</p>
+          <input
+            type="text" placeholder="e.g. Australia, Melbourne, US…"
+            value={draft.location}
+            onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+            className="w-full rounded-btn border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ink"
+          />
+        </div>
+
+        {/* Skills */}
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-label text-muted">Skills</p>
+          <div className="flex flex-wrap gap-2">
+            {SKILL_OPTIONS.map((s) => (
+              <span key={s} className={chip(draft.skills.includes(s))} onClick={() => toggleArr('skills', s)}>{s}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Experience level */}
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-label text-muted">Experience level</p>
+          <div className="flex flex-wrap gap-2">
+            {EXPERIENCE_OPTS.map((e) => (
+              <span key={e} className={chip(draft.experienceLevel === e)} onClick={() => setDraft({ ...draft, experienceLevel: draft.experienceLevel === e ? '' : e })}>{e}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Availability */}
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-label text-muted">Availability</p>
+          <div className="flex flex-wrap gap-2">
+            {AVAILABILITY_OPTS.map((a) => (
+              <span key={a} className={chip(draft.availability === a)} onClick={() => setDraft({ ...draft, availability: draft.availability === a ? '' : a })}>{a}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-line pt-3">
+          <button
+            onClick={() => setDraft(EMPTY_CRITERIA)}
+            className="text-xs font-semibold text-muted hover:text-ink"
+          >
+            Reset
+          </button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button variant="primary" onClick={() => { onSave(draft); onClose() }}>Save criteria</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function StepRecapNonScripted({
   contestantCount,
   globalFormat,
@@ -1833,6 +2005,13 @@ function StepRecapNonScripted({
   onBack: () => void
 }) {
   const navigate = useNavigate()
+  const [globalCriteria, setGlobalCriteria] = useState<SlotCriteria>({
+    gender: ['Any'], ageMin: '18', ageMax: '60', languages: ['English'],
+    location: 'Australia', skills: ['Home Cook'], experienceLevel: 'Amateur', availability: 'Full availability',
+  })
+  const [globalCriteriaOpen, setGlobalCriteriaOpen] = useState(false)
+  const [slotCriteria, setSlotCriteria] = useState<Record<string, SlotCriteria>>({})
+  const [criteriaModalFor, setCriteriaModalFor] = useState<string | null>(null)
 
   const slots = Array.from({ length: contestantCount }, (_, i) => ({
     label: `Contestant ${i + 1}`,
@@ -1878,6 +2057,26 @@ function StepRecapNonScripted({
         </p>
       </Card>
 
+      {/* Global criteria */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-label text-muted">Talent criteria (all slots)</span>
+          <button
+            onClick={() => setGlobalCriteriaOpen(true)}
+            className="flex items-center gap-1 text-xs font-semibold text-ink hover:text-ink/70"
+          >
+            <Pencil className="h-3 w-3" /> Edit
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {criteriaChips(globalCriteria).map((chip) => (
+            <span key={chip} className="rounded-full bg-ink/5 px-2.5 py-0.5 text-[11px] font-semibold text-ink/70">
+              {chip}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* Match-all CTA */}
       <button
         onClick={allApplied ? undefined : handleMatchAll}
@@ -1902,47 +2101,82 @@ function StepRecapNonScripted({
         )}
       </button>
 
+      {/* Global criteria modal */}
+      {globalCriteriaOpen && (
+        <SlotCriteriaModal
+          slotLabel="All contestants"
+          initial={globalCriteria}
+          onSave={(c) => setGlobalCriteria(c)}
+          onClose={() => setGlobalCriteriaOpen(false)}
+        />
+      )}
+
       {/* Slots list */}
       <div className="flex flex-col gap-2">
         <span className="tech-label">{contestantCount} contestant slots</span>
-        {slots.map((slot, i) => (
-          <motion.div key={slot.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
-            <Card className="flex items-center gap-3">
-              <span className={cn(
-                'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-2 transition-colors',
-                allApplied
-                  ? 'bg-signal-good text-white ring-signal-good/30'
-                  : 'bg-cream text-ink ring-cream/40',
-              )}>
-                {allApplied ? <Check className="h-4 w-4" /> : slot.label.replace('Contestant ', '')}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-ink">{slot.label}</p>
-                <p className="text-xs text-muted">
-                  {allApplied ? 'Profile applied — ' : ''}Open · {FORMAT_LABEL[globalFormat]}
-                </p>
-              </div>
-              {allApplied ? (
-                <Button
-                  variant="secondary"
-                  icon={<Pencil className="h-4 w-4" />}
-                  onClick={() => handleModifySlot(slot)}
-                  className="border-signal-good/30 text-signal-good hover:bg-signal-good-bg"
-                >
-                  Modify
-                </Button>
-              ) : (
-                <Button
-                  variant="primary"
-                  icon={<Sparkles className="h-4 w-4" />}
-                  onClick={() => handleModifySlot(slot)}
-                >
-                  Matching Profile
-                </Button>
-              )}
-            </Card>
-          </motion.div>
-        ))}
+        {slots.map((slot, i) => {
+          const criteria = slotCriteria[slot.id]
+          const chips = criteria ? criteriaChips(criteria) : []
+          return (
+            <motion.div key={slot.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+              <Card className="flex flex-col gap-2">
+                <div className="flex items-center gap-3">
+                  <span className={cn(
+                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-2 transition-colors',
+                    allApplied
+                      ? 'bg-signal-good text-white ring-signal-good/30'
+                      : 'bg-cream text-ink ring-cream/40',
+                  )}>
+                    {allApplied ? <Check className="h-4 w-4" /> : slot.label.replace('Contestant ', '')}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-ink">{slot.label}</p>
+                    <p className="text-xs text-muted">
+                      {allApplied ? 'Profile applied — ' : ''}Open · {FORMAT_LABEL[globalFormat]}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      icon={<Pencil className="h-3.5 w-3.5" />}
+                      onClick={() => setCriteriaModalFor(slot.id)}
+                      className="text-xs"
+                    >
+                      Edit criteria
+                    </Button>
+                    {allApplied ? (
+                      <Button
+                        variant="secondary"
+                        icon={<Pencil className="h-4 w-4" />}
+                        onClick={() => handleModifySlot(slot)}
+                        className="border-signal-good/30 text-signal-good hover:bg-signal-good-bg"
+                      >
+                        Modify
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="primary"
+                        icon={<Sparkles className="h-4 w-4" />}
+                        onClick={() => handleModifySlot(slot)}
+                      >
+                        Matching Profile
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {chips.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pl-12">
+                    {chips.map((chip) => (
+                      <span key={chip} className="rounded-full bg-ink/5 px-2.5 py-0.5 text-[11px] font-semibold text-ink/70">
+                        {chip}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </motion.div>
+          )
+        })}
       </div>
 
       {/* Console CTA — shown once all applied */}
@@ -1977,6 +2211,19 @@ function StepRecapNonScripted({
           View contestant wall
         </Button>
       </div>
+
+      {/* Edit criteria modal */}
+      {criteriaModalFor !== null && (() => {
+        const slot = slots.find((s) => s.id === criteriaModalFor)
+        return slot ? (
+          <SlotCriteriaModal
+            slotLabel={slot.label}
+            initial={slotCriteria[slot.id] ?? EMPTY_CRITERIA}
+            onSave={(c) => setSlotCriteria((prev) => ({ ...prev, [slot.id]: c }))}
+            onClose={() => setCriteriaModalFor(null)}
+          />
+        ) : null
+      })()}
     </div>
   )
 }

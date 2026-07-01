@@ -1,12 +1,20 @@
+import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Globe, Users, Building2, Sparkles, LayoutGrid } from 'lucide-react'
+import { ArrowLeft, Globe, Users, Building2, Sparkles, LayoutGrid, Pencil } from 'lucide-react'
 import { Card, Button, Tag } from '@/components/ui'
 import { projectsById, rolesByProject } from '@/data'
 import { useProjectCasting, ROLE_CASTING_DEFAULTS, type AuditionFormat, type RoleCastingStatus } from '@/data/castingState'
 import { cn } from '@/lib/cn'
-import { Stepper, WORKFLOW_STEPS_SCRIPTED } from './NewCasting'
+import { Stepper, WORKFLOW_STEPS_SCRIPTED, SlotCriteria, EMPTY_CRITERIA, criteriaChips, SlotCriteriaModal } from './NewCasting'
 import { asset } from '@/lib/asset'
+
+const SCRIPTED_DEFAULT_CRITERIA: Record<string, SlotCriteria> = {
+  'chloe-marchand':    { gender: ['Female'], ageMin: '35', ageMax: '45', languages: ['French'], location: 'France', skills: [], experienceLevel: 'Professional', availability: 'Full availability' },
+  'agnes-marchand-film': { gender: ['Female'], ageMin: '60', ageMax: '70', languages: ['French'], location: 'France', skills: [], experienceLevel: 'Professional', availability: 'Full availability' },
+  'remy-jourdain':     { gender: ['Male'],   ageMin: '40', ageMax: '50', languages: ['French'], location: 'France', skills: [], experienceLevel: 'Professional', availability: 'Full availability' },
+  'la-temoin-film':    { gender: ['Female'], ageMin: '25', ageMax: '35', languages: ['French'], location: 'France', skills: [], experienceLevel: 'Semi-pro',     availability: 'Full availability' },
+}
 
 const FORMAT_META: Record<AuditionFormat, { label: string; icon: React.ReactNode; desc: string; color: string }> = {
   'open-call': {
@@ -58,6 +66,8 @@ export function CastingRecap() {
   }
 
   const allResolved = roles.every((role) => stateFor(role.id).status !== 'ready')
+  const [roleCriteria, setRoleCriteria] = useState<Record<string, SlotCriteria>>(SCRIPTED_DEFAULT_CRITERIA)
+  const [criteriaModalFor, setCriteriaModalFor] = useState<string | null>(null)
 
   const handleMatchingProfile = (roleId: string, format: AuditionFormat) => {
     if (format === 'in-house') {
@@ -161,20 +171,25 @@ export function CastingRecap() {
                   </span>
                 </div>
 
-                {/* Role criteria */}
+                {/* Role criteria chips */}
                 <div className="flex flex-wrap gap-1">
-                  <span className="rounded-full bg-paper px-2 py-0.5 font-mono text-[10px] text-muted ring-1 ring-line">{gender} · {age}</span>
-                  <span className="rounded-full bg-paper px-2 py-0.5 font-mono text-[10px] text-muted ring-1 ring-line">{role.deadline ? `Deadline ${role.deadline}` : 'Nov 15'}</span>
-                  <span className="rounded-full bg-paper px-2 py-0.5 font-mono text-[10px] text-muted ring-1 ring-line">French · English</span>
+                  {(() => {
+                    const chips = criteriaChips(roleCriteria[role.id] ?? EMPTY_CRITERIA)
+                    return chips.length > 0 ? chips.map((chip) => (
+                      <span key={chip} className="rounded-full bg-ink/5 px-2.5 py-0.5 text-[11px] font-semibold text-ink/70">{chip}</span>
+                    )) : (
+                      <>
+                        <span className="rounded-full bg-paper px-2 py-0.5 font-mono text-[10px] text-muted ring-1 ring-line">{gender} · {age}</span>
+                        <span className="rounded-full bg-paper px-2 py-0.5 font-mono text-[10px] text-muted ring-1 ring-line">{role.deadline ? `Deadline ${role.deadline}` : 'Nov 15'}</span>
+                        <span className="rounded-full bg-paper px-2 py-0.5 font-mono text-[10px] text-muted ring-1 ring-line">French · English</span>
+                      </>
+                    )
+                  })()}
                   {format === 'in-house' && (
-                    <span className="rounded-full bg-ink/5 px-2 py-0.5 font-mono text-[10px] font-semibold text-ink ring-1 ring-ink/10">
-                      Agency required
-                    </span>
+                    <span className="rounded-full bg-ink/5 px-2 py-0.5 font-mono text-[10px] font-semibold text-ink ring-1 ring-ink/10">Agency required</span>
                   )}
                   {hasBrief && (
-                    <span className="rounded-full bg-ink/5 px-2 py-0.5 font-mono text-[10px] font-semibold text-ink ring-1 ring-ink/10">
-                      Brief recorded
-                    </span>
+                    <span className="rounded-full bg-ink/5 px-2 py-0.5 font-mono text-[10px] font-semibold text-ink ring-1 ring-ink/10">Brief recorded</span>
                   )}
                 </div>
 
@@ -192,15 +207,25 @@ export function CastingRecap() {
                       </>
                     )}
                   </div>
-                  <Button
-                    disabled={isNotOpened}
-                    variant={isOngoing ? 'secondary' : 'primary'}
-                    icon={<Sparkles className="h-4 w-4" />}
-                    onClick={() => handleMatchingProfile(role.id, format)}
-                    className={cn(isNotOpened && 'opacity-40 cursor-not-allowed')}
-                  >
-                    {isOngoing ? 'View search' : 'Matching Profile'}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      icon={<Pencil className="h-3.5 w-3.5" />}
+                      onClick={() => setCriteriaModalFor(role.id)}
+                      className="text-xs"
+                    >
+                      Edit criteria
+                    </Button>
+                    <Button
+                      disabled={isNotOpened}
+                      variant={isOngoing ? 'secondary' : 'primary'}
+                      icon={<Sparkles className="h-4 w-4" />}
+                      onClick={() => handleMatchingProfile(role.id, format)}
+                      className={cn(isNotOpened && 'opacity-40 cursor-not-allowed')}
+                    >
+                      {isOngoing ? 'View search' : 'Matching Profile'}
+                    </Button>
+                  </div>
                 </div>
               </Card>
             </motion.div>
@@ -226,6 +251,18 @@ export function CastingRecap() {
           </Card>
         </motion.div>
       )}
+      {/* Edit criteria modal */}
+      {criteriaModalFor !== null && (() => {
+        const role = roles.find((r) => r.id === criteriaModalFor)
+        return role ? (
+          <SlotCriteriaModal
+            slotLabel={role.name}
+            initial={roleCriteria[role.id] ?? EMPTY_CRITERIA}
+            onSave={(c) => setRoleCriteria((prev) => ({ ...prev, [role.id]: c }))}
+            onClose={() => setCriteriaModalFor(null)}
+          />
+        ) : null
+      })()}
     </div>
   )
 }
