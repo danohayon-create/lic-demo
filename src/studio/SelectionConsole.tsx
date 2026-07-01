@@ -381,9 +381,14 @@ export function SelectionConsole() {
   }
 
   // ── header counters (project-wide, unfiltered) ──
-  const shortlistRank = BOARD_COLUMNS.indexOf('shortlisted')
-  const shortlistCount = allCandidates.filter((c) => BOARD_COLUMNS.indexOf(c.status) >= shortlistRank).length
-  const bookedCount = allCandidates.filter((c) => c.status === 'cast').length
+  const shortlistCount = allCandidates.filter((c) => c.status === 'shortlisted' || c.status === 'callback').length
+  const offerCount     = allCandidates.filter((c) => c.status === 'offer').length
+  const castCount      = allCandidates.filter((c) => c.status === 'cast').length
+  const reviewedCount  = allCandidates.filter((c) => c.good > 0 || c.maybe > 0 || c.no > 0).length
+  const contestantSlots = project.kpis?.roles.total ?? roles.length
+  const totalForReview = allCandidates.length || 1
+  const reviewedPct = Math.round((reviewedCount / totalForReview) * 100)
+  const castPct = contestantSlots > 0 ? Math.round((castCount / contestantSlots) * 100) : 0
 
   const activeCount = activeFilterCount(filters)
 
@@ -507,11 +512,26 @@ export function SelectionConsole() {
             <p className="mt-1 text-sm italic leading-relaxed text-muted">"{project.synopsis ?? LOGLINE}"</p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 border-t border-line pt-4 sm:grid-cols-4">
-          <StatCell value={project.kpis?.roles.total ?? roles.length} label={project.format === 'non_scripted' ? 'Contestant slots' : 'Roles'} />
-          <StatCell value={project.kpis?.submissions.total ?? allCandidates.length} label="Submissions" />
-          <StatCell value={project.kpis?.shortlist.total ?? shortlistCount} label="Shortlist" />
-          <StatCell value={project.kpis?.booked ?? bookedCount} label="Booked" />
+        <div className="grid grid-cols-3 gap-3 border-t border-line pt-4 sm:grid-cols-6">
+          <StatCell value={contestantSlots} label={project.format === 'non_scripted' ? 'Contestant slots' : 'Roles'} />
+          <StatCell value={(project.kpis?.submissions.total ?? allCandidates.length).toLocaleString('fr-FR')} label="Submissions" />
+          <StatCell
+            value={`${reviewedPct}%`}
+            label="Reviewed"
+            color={reviewedPct < 40 ? 'red' : reviewedPct < 80 ? 'orange' : 'green'}
+          />
+          <StatCell
+            value={shortlistCount}
+            label="Shortlist"
+            tooltip="Sum of Shortlisted + Callback"
+          />
+          <StatCell value={offerCount} label="Offer" />
+          <StatCell
+            value={castCount}
+            label="Cast"
+            sub={`${castPct}% of slots`}
+            color={castPct < 40 ? 'red' : castPct < 80 ? 'orange' : 'green'}
+          />
         </div>
       </Card>
 
@@ -1986,65 +2006,52 @@ function WallView({
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {roles.map((role) => {
           const candidates = allCandidates.filter((c) => c.roleId === role.id)
-          const chosen = candidates.filter((c) => c.status === 'cast' || c.status === 'offer')
+          // one candidate per role: prefer cast, then offer
+          const chosen = candidates.find((c) => c.status === 'cast') ?? candidates.find((c) => c.status === 'offer') ?? null
           const shortlistRank = BOARD_COLUMNS.indexOf('shortlisted')
           const shortlisted = candidates.filter((c) => BOARD_COLUMNS.indexOf(c.status) >= shortlistRank).length
 
           return (
             <Card key={role.id} flush className="flex flex-col overflow-hidden">
-              {chosen.length > 0 ? (
+              {chosen ? (
                 <>
-                  <div className={cn('grid', chosen.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
-                    {chosen.map((c) => (
-                      <div key={c.id} className="group relative aspect-square overflow-hidden bg-paper">
-                        {c.avatar ? (
-                          <img src={asset(c.avatar)} alt={c.name} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center">
-                            <Avatar name={c.name} size="xl" />
-                          </div>
-                        )}
-                        {/* Play overlay */}
-                        <button
-                          onClick={() => onPlay(c)}
-                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
-                        >
-                          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-ink shadow-lg">
-                            <Play className="ml-0.5 h-4 w-4" />
-                          </span>
-                        </button>
-                        {/* Trash button */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); removeFromWall(c.id) }}
-                          className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-signal-no/80"
-                          title="Remove from wall"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                  <div className="group relative aspect-square overflow-hidden bg-paper">
+                    {chosen.avatar ? (
+                      <img src={asset(chosen.avatar)} alt={chosen.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <Avatar name={chosen.name} size="xl" />
                       </div>
-                    ))}
+                    )}
+                    {/* Play overlay */}
+                    <button
+                      onClick={() => onPlay(chosen)}
+                      className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-ink shadow-lg">
+                        <Play className="ml-0.5 h-4 w-4" />
+                      </span>
+                    </button>
+                    {/* Replace button */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeFromWall(chosen.id); openPicker(role.id) }}
+                      className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-signal-no/80"
+                      title="Replace"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                   <div className="flex flex-1 flex-col gap-1.5 p-3">
                     <p className="text-xs font-bold uppercase tracking-label text-muted">{role.name}</p>
-                    {chosen.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between gap-2">
-                        <p className="truncate text-sm font-semibold text-ink">{c.name}</p>
-                        <span
-                          className={cn(
-                            'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold',
-                            c.status === 'cast' ? 'bg-signal-good-bg text-signal-good' : 'bg-gold/15 text-[#8A6D00]',
-                          )}
-                        >
-                          {c.status === 'cast' ? 'Cast' : 'Offer'}
-                        </span>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => openPicker(role.id)}
-                      className="mt-1 text-left text-xs font-medium text-link hover:underline"
-                    >
-                      + Add another
-                    </button>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-sm font-semibold text-ink">{chosen.name}</p>
+                      <span className={cn(
+                        'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold',
+                        chosen.status === 'cast' ? 'bg-signal-good-bg text-signal-good' : 'bg-gold/15 text-[#8A6D00]',
+                      )}>
+                        {chosen.status === 'cast' ? 'Cast' : 'Offer'}
+                      </span>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -2100,9 +2107,11 @@ function WallView({
           {/* Scrollable body — grouped by role */}
           <div className="flex-1 overflow-y-auto px-6 py-6">
             {roles.map((role) => {
+              // scripted picker: only show offer/cast candidates for the focused role
+              if (focusRoleId && role.id !== focusRoleId) return null
               const roleCandidates = allCandidates.filter((c) => {
                 if (c.roleId !== role.id) return false
-                if (c.status === 'new') return false
+                if (c.status !== 'offer' && c.status !== 'cast') return false
                 if (searchQuery) return c.name.toLowerCase().includes(searchQuery.toLowerCase())
                 return true
               })
@@ -2127,7 +2136,7 @@ function WallView({
                     {roleCandidates.map((c) => (
                       <button
                         key={c.id}
-                        onClick={() => { moveCandidate(c.id, 'offer'); closePicker() }}
+                        onClick={() => { moveCandidate(c.id, 'cast'); closePicker() }}
                         className="group relative overflow-hidden rounded-card border border-transparent transition-all hover:border-link/40 hover:shadow-card-hover focus:outline-none focus:ring-2 focus:ring-link/40"
                       >
                         <div className="relative aspect-[3/4] w-full overflow-hidden bg-paper">
@@ -2165,12 +2174,13 @@ function WallView({
               )
             })}
             {/* Empty state when search has no results */}
-            {roles.every((role) =>
-              allCandidates.filter((c) => c.roleId === role.id && c.status !== 'new' && (!searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()))).length === 0
-            ) && (
+            {roles.every((role) => {
+              if (focusRoleId && role.id !== focusRoleId) return true
+              return allCandidates.filter((c) => c.roleId === role.id && (c.status === 'offer' || c.status === 'cast') && (!searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()))).length === 0
+            }) && (
               <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
                 <UserRound className="h-12 w-12 text-line" />
-                <p className="text-sm font-semibold text-muted">No applicants match your search</p>
+                <p className="text-sm font-semibold text-muted">{searchQuery ? 'No candidates match your search' : 'No candidates in Offer or Cast status for this role'}</p>
               </div>
             )}
           </div>
@@ -2182,11 +2192,31 @@ function WallView({
 
 /* ── Candidate card ───────────────────────────────────────────────────────── */
 
-function StatCell({ value, label }: { value: number; label: string }) {
+function StatCell({
+  value, label, color, tooltip, sub,
+}: {
+  value: number | string
+  label: string
+  color?: 'red' | 'orange' | 'green'
+  tooltip?: string
+  sub?: string
+}) {
+  const valueColor = color === 'red' ? 'text-signal-no' : color === 'orange' ? 'text-[#C47A00]' : color === 'green' ? 'text-signal-good' : 'text-ink'
   return (
-    <div className="flex flex-col items-center justify-center gap-1 whitespace-nowrap rounded-btn bg-paper px-2 py-3 ring-1 ring-line">
-      <span className="text-2xl font-bold tracking-tight text-ink">{value}</span>
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">{label}</span>
+    <div className="relative flex flex-col items-center justify-center gap-0.5 whitespace-nowrap rounded-btn bg-paper px-2 py-3 ring-1 ring-line">
+      <span className={cn('text-2xl font-bold tracking-tight', valueColor)}>{value}</span>
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">{label}</span>
+        {tooltip && (
+          <span className="group relative flex cursor-default items-center">
+            <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-ink/10 text-[9px] font-bold text-ink/50">i</span>
+            <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-ink px-2 py-1 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
+              {tooltip}
+            </span>
+          </span>
+        )}
+      </div>
+      {sub && <span className={cn('text-[11px] font-bold', valueColor)}>{sub}</span>}
     </div>
   )
 }
