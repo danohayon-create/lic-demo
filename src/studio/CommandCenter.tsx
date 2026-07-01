@@ -76,7 +76,7 @@ const SCENARIOS: Scenario[] = [
     },
     tasks: {
       items: [
-        { label: 'Review 84 auditions for Survivor', due: 'Fri',      urgent: true },
+        { label: 'Review 84 casting tapes for Survivor', due: 'Fri',      urgent: true },
         { label: 'Send 6 callback requests',          due: 'Today',    urgent: true },
         { label: 'Approve shortlist for MasterChef',  due: 'Tomorrow', urgent: false },
         { label: 'Validate Big Brother finalist list', due: 'Mon',     urgent: false },
@@ -86,9 +86,9 @@ const SCENARIOS: Scenario[] = [
       actionsCount: 18,
       stats: { shortlisted: 21, rejected: 8, tapesRated: 6 },
       items: [
-        { initials: 'SL', name: 'Sarah', action: 'shortlisted 12 candidates', tag: 'Shortlist', tone: 'link',    project: 'Survivor S12',  time: '1h', dot: 'bg-link' },
-        { initials: 'MR', name: 'Mike',  action: 'rejected 8 auditions',      tag: 'No go',    tone: 'no',     project: 'MasterChef',    time: '3h', dot: 'bg-signal-no' },
-        { initials: 'ET', name: 'Eden',  action: 'shortlisted 9 candidates',  tag: 'Shortlist', tone: 'link',    project: 'Big Brother',   time: '4h', dot: 'bg-link' },
+        { initials: 'SL', name: 'Sarah', action: 'shortlisted 12 applicants', tag: 'Shortlist', tone: 'link',    project: 'Survivor S12',  time: '1h', dot: 'bg-link' },
+        { initials: 'MR', name: 'Mike',  action: 'rejected 8 casting tapes',      tag: 'No go',    tone: 'no',     project: 'MasterChef',    time: '3h', dot: 'bg-signal-no' },
+        { initials: 'ET', name: 'Eden',  action: 'shortlisted 9 applicants',  tag: 'Shortlist', tone: 'link',    project: 'Big Brother',   time: '4h', dot: 'bg-link' },
         { initials: 'JC', name: 'Julie', action: 'rated 6 tapes Good match',  tag: 'Good match', tone: 'good',  project: 'Evermore',      time: '5h', dot: 'bg-signal-good' },
       ],
     },
@@ -128,8 +128,8 @@ const SCENARIOS: Scenario[] = [
       stats: { shortlisted: 38, rejected: 19, tapesRated: 96 },
       items: [
         { initials: 'LK', name: 'Lara',  action: 'shortlisted 9 finalists',        tag: 'Shortlist',  tone: 'link',    project: 'MasterChef',   time: '20m', dot: 'bg-link' },
-        { initials: 'MR', name: 'Mike',  action: 'moved 6 candidates to callback', tag: 'Callback',   tone: 'gold',   project: 'Survivor S12', time: '48m', dot: 'bg-gold' },
-        { initials: 'SL', name: 'Sarah', action: 'rejected 11 auditions',          tag: 'No go',      tone: 'no',     project: 'Big Brother',  time: '1h',  dot: 'bg-signal-no' },
+        { initials: 'MR', name: 'Mike',  action: 'moved 6 applicants to callback', tag: 'Callback',   tone: 'gold',   project: 'Survivor S12', time: '48m', dot: 'bg-gold' },
+        { initials: 'SL', name: 'Sarah', action: 'rejected 11 casting tapes',          tag: 'No go',      tone: 'no',     project: 'Big Brother',  time: '1h',  dot: 'bg-signal-no' },
         { initials: 'ET', name: 'Eden',  action: 'left feedback on 7 finalists',   tag: 'Note',       tone: 'neutral', project: 'MasterChef',  time: '2h',  dot: 'bg-line' },
         { initials: 'JC', name: 'Julie', action: 'rated 22 tapes Good match',      tag: 'Good match', tone: 'good',   project: 'Survivor S12', time: '3h',  dot: 'bg-signal-good' },
       ],
@@ -171,7 +171,7 @@ const SCENARIOS: Scenario[] = [
       actionsCount: 9,
       stats: { shortlisted: 4, rejected: 0, tapesRated: 0 },
       items: [
-        { initials: 'LK', name: 'Lara', action: 'shortlisted 4 candidates',       tag: 'Shortlist', tone: 'link',    project: 'Big Brother', time: '38m', dot: 'bg-link' },
+        { initials: 'LK', name: 'Lara', action: 'shortlisted 4 applicants',       tag: 'Shortlist', tone: 'link',    project: 'Big Brother', time: '38m', dot: 'bg-link' },
         { initials: 'ET', name: 'Eden', action: 'flagged 2 scheduling conflicts', tag: 'Note',      tone: 'neutral', project: 'MasterChef',  time: '1h',  dot: 'bg-line' },
       ],
     },
@@ -189,7 +189,7 @@ const SCENARIOS: Scenario[] = [
 const QUICK_ACTIONS = [
   'Summarize my projects',
   'Show urgent tasks',
-  'Show strongest candidates',
+  'Show strongest applicants',
   'Show latest team activity',
   "Prepare today's review session",
 ]
@@ -225,7 +225,7 @@ function buildResponse(prompt: string, scenario: Scenario): AssistantResponse | 
       items: urgent.map((t) => ({ dot: 'bg-signal-no', label: t.label, value: t.due })),
     }
   }
-  if (prompt === 'Show strongest candidates') {
+  if (prompt === 'Show strongest applicants') {
     return {
       text: "Here are today's top-rated tapes by match score.",
       items: STRONGEST_TAPES.map((t) => ({ dot: 'bg-gold', label: `${t.name} — ${t.meta}`, value: `${t.score}` })),
@@ -531,7 +531,7 @@ function AuditionsWidget({
         )}
       </div>
       <div>
-        <h2 className="text-lg font-bold text-ink">New auditions</h2>
+        <h2 className="text-lg font-bold text-ink">New casting tapes</h2>
         <div className="mt-1 flex items-baseline gap-2">
           <span className={cn('font-bold tracking-tight text-ink', variant === 'primary' ? 'text-5xl' : 'text-3xl')}>
             {data.total}

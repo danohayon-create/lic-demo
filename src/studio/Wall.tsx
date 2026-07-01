@@ -162,7 +162,7 @@ function RoleWallCard({ role, projectId }: { role: Role; projectId: string }) {
           </>
         ) : (
           <>
-            <p className="text-xs text-muted">{auditions} auditions, {shortlisted} shortlisted</p>
+            <p className="text-xs text-muted">{auditions} applicants, {shortlisted} shortlisted</p>
             <Button
               size="sm"
               variant="secondary"

@@ -61,7 +61,7 @@ export function StudioTalentProfile() {
 
             <div className="flex flex-wrap items-center gap-2 mt-1">
               <h1 className="text-2xl font-bold tracking-tight text-ink">{candidate.name}</h1>
-              {isNew && <span title="New candidate — first-time applicant">⭐</span>}
+              {isNew && <span title="New applicant — first-time submission">⭐</span>}
             </div>
             <p className="mt-0.5 text-sm text-muted">
               {candidate.age} y/o · {candidate.city}
@@ -70,7 +70,7 @@ export function StudioTalentProfile() {
             <div className="mt-3 flex flex-wrap gap-1.5">
               {candidate.experienceLevel && <Tag>{candidate.experienceLevel}</Tag>}
               {candidate.languages?.map((l) => <Tag key={l}>{l}</Tag>)}
-              {isNew && <Tag tone="link">New candidate</Tag>}
+              {isNew && <Tag tone="link">New applicant</Tag>}
             </div>
           </div>
         </Card>
@@ -209,7 +209,7 @@ function CastingHistoryRow({
             setPlaying((v) => !v)
           }}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-signal-no text-white shadow-sm hover:bg-signal-no/80 transition-colors"
-          title="Watch self-tape"
+          title="Watch casting tape"
         >
           <Play className="ml-0.5 h-3.5 w-3.5 fill-white" />
         </button>
@@ -254,7 +254,7 @@ function SelfTapePlayer({ src, name }: { src: string; name: string }) {
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-signal-no text-white shadow-lg">
             <Play className="ml-0.5 h-6 w-6 fill-white" />
           </span>
-          <span className="text-sm font-semibold text-white drop-shadow">{name}'s self-tape</span>
+          <span className="text-sm font-semibold text-white drop-shadow">{name}'s casting tape</span>
         </button>
       )}
       <button

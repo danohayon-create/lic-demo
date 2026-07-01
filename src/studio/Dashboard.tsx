@@ -314,7 +314,7 @@ function ProjectHeader({
           className="inline-flex h-10 items-center justify-center gap-2 rounded-btn border border-gold/40 bg-gold/15 px-4 text-sm font-semibold text-[#8A6D00] transition-all hover:bg-gold/25 active:scale-[0.98]"
         >
           <LayoutGrid className="h-4 w-4" />
-          Audition Console
+          Casting Console
         </button>
         <Button
           icon={<Sparkles className="h-4 w-4" />}

@@ -93,7 +93,7 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
         <Card className="flex flex-col items-center gap-2 py-16 text-center">
           <span className="text-3xl">🎬</span>
           <p className="text-sm font-semibold text-ink">No submissions yet for this role</p>
-          <p className="text-xs text-muted">Candidates will appear here once the casting call is open.</p>
+          <p className="text-xs text-muted">Applicants will appear here once the casting call is open.</p>
         </Card>
       </div>
     )
@@ -153,7 +153,7 @@ export function RoleReview({ projectId, roleId }: { projectId: string; roleId: s
               </span>
             </h1>
             <p className="mt-1 text-sm text-muted">
-              {candidate.age} y/o · {candidate.city} · {candidates.length} candidates for this role
+              {candidate.age} y/o · {candidate.city} · {candidates.length} applicants for this role
             </p>
           </div>
         </div>
@@ -277,7 +277,7 @@ function ScoreBreakdownModal({
 
           {/* Formula intro */}
           <p className="text-xs text-muted leading-relaxed">
-            The LIC score is a composite of two equally weighted families: the <strong className="text-ink">current casting evaluation</strong> and the candidate's <strong className="text-ink">historical performance</strong> across past productions.
+            The LIC score is a composite of two equally weighted families: the <strong className="text-ink">current casting evaluation</strong> and the applicant's <strong className="text-ink">historical performance</strong> across past shows.
           </p>
 
           {/* Family 1 — Current Casting */}
@@ -356,7 +356,7 @@ function ScoreBreakdownModal({
                   <span className="w-8 text-right text-[11px] font-semibold text-muted">{e.pts}</span>
                 </div>
               ))}
-              <p className="text-[11px] text-muted mt-0.5">+{historyEntries.length - 4} more productions · weighted average</p>
+              <p className="text-[11px] text-muted mt-0.5">+{historyEntries.length - 4} more shows · weighted average</p>
             </div>
 
             <div className="rounded-btn bg-gold/5 px-3 py-1.5 text-[11px] font-mono text-[#8A6D00]">
@@ -430,8 +430,8 @@ function LICIntelligenceCard({ totalCandidates, licScore }: { candidate?: Candid
       </div>
       <p className="text-xs text-muted leading-relaxed">
         Ranking combines team ratings, AI scene analysis, and historical casting patterns.
-        Each candidate is benchmarked against all {totalCandidates} submissions for this role.
-        The model improves continuously as your team rates more auditions.
+        Each applicant is benchmarked against all {totalCandidates} submissions for this role.
+        The model improves continuously as your team reviews more casting tapes.
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -462,7 +462,7 @@ function LICIntelligenceCard({ totalCandidates, licScore }: { candidate?: Candid
         <div>
           <div className="mb-1.5 flex items-center gap-1">
             <p className="text-[11px] font-semibold uppercase tracking-label text-muted">Similar Talent</p>
-            <InfoTooltip text="Candidates from past seasons whose scene analysis scores and demographic profile closely match this candidate. A strong similarity to past successful profiles is a positive signal." />
+            <InfoTooltip text="Applicants from past shows whose scene analysis scores and demographic profile closely match this applicant. A strong similarity to past successful profiles is a positive signal." />
           </div>
           <div className="flex flex-col gap-1">
             {[
@@ -508,7 +508,7 @@ function CastingHistoryCard() {
         <div className="flex items-center gap-2">
           <History className="h-3.5 w-3.5 text-muted" />
           <span className="tech-label">Casting history</span>
-          <span className="ml-auto text-[11px] text-muted">{HISTORY_ENTRIES.length} productions</span>
+          <span className="ml-auto text-[11px] text-muted">{HISTORY_ENTRIES.length} shows</span>
         </div>
         <ul className="flex max-h-64 flex-col gap-1.5 overflow-y-auto pr-1">
           {HISTORY_ENTRIES.map((entry) => (
@@ -521,7 +521,7 @@ function CastingHistoryCard() {
               <button
                 onClick={() => setPreview(entry)}
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-signal-no text-white hover:bg-signal-no/80 transition-colors shadow-sm"
-                title="Revoir la self-tape"
+                title="Revoir la casting tape"
               >
                 <Play className="ml-0.5 h-3 w-3" />
               </button>

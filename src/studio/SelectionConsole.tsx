@@ -301,7 +301,7 @@ export function SelectionConsole() {
     setOverColumn(null)
     if (!draggedId) return
     const result = moveCandidate(draggedId, status)
-    if (!result.ok) toast(result.reason ?? "Couldn't move candidate")
+    if (!result.ok) toast(result.reason ?? "Couldn't move applicant")
     setDraggedId(null)
   }
 
@@ -341,7 +341,7 @@ export function SelectionConsole() {
     toast(
       failures > 0
         ? `${moved} moved to ${BOARD_COLUMN_LABELS[status]} · ${failures} couldn't move`
-        : `${moved} candidate${moved === 1 ? '' : 's'} moved to ${BOARD_COLUMN_LABELS[status]}`,
+        : `${moved} applicant${moved === 1 ? '' : 's'} moved to ${BOARD_COLUMN_LABELS[status]}`,
     )
     setStatusModalOpen(false)
     clearSelection()
@@ -565,7 +565,7 @@ export function SelectionConsole() {
             {topTalentOpen && (
               <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-card border border-line bg-card p-4 shadow-card-hover">
                 <div className="mb-3 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-ink">Show top candidates</span>
+                  <span className="text-xs font-semibold text-ink">Show top applicants</span>
                   <button onClick={() => setTopTalentOpen(false)} className="text-muted hover:text-ink">
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -585,7 +585,7 @@ export function SelectionConsole() {
                     <span>5%</span><span>25%</span><span>50%</span>
                   </div>
                   <p className="mt-1 text-[11px] leading-relaxed text-muted">
-                    Showing candidates ranked in the top {topTalentPct}% by composite score (current casting + historical performance).
+                    Showing applicants ranked in the top {topTalentPct}% by composite score (current casting + historical performance).
                   </p>
                 </div>
               </div>
@@ -622,12 +622,12 @@ export function SelectionConsole() {
         {selectMode
           ? 'Click cards to select them, then change their status or message them in bulk.'
           : view === 'kanban'
-            ? 'Drag a candidate card between columns to move them through the pipeline. New submissions must be reviewed before they can move.'
+            ? 'Drag an applicant card between columns to move them through the pipeline. New submissions must be reviewed before they can move.'
             : view === 'list'
               ? 'Double-click a row to watch the review.'
               : project.format === 'non_scripted'
-                ? 'Move candidates to Cast across any team to fill the contestant slots on The Wall.'
-                : 'Each role shows its current pick — Select to open the list and choose a candidate.'}
+                ? 'Move applicants to Cast across any team to fill the contestant slots on The Wall.'
+                : 'Each role shows its current pick — Select to open the list and choose an applicant.'}
       </p>
 
       {columnFocus && view === 'list' && (
@@ -732,7 +732,7 @@ export function SelectionConsole() {
                   ))}
                   {colCandidates.length === 0 && (
                     <div className="rounded-btn border border-dashed border-line py-8 text-center text-[11px] text-muted">
-                      {locked ? 'No new submissions' : 'No candidates'}
+                      {locked ? 'No new submissions' : 'No applicants'}
                     </div>
                   )}
                 </div>
@@ -818,7 +818,7 @@ export function SelectionConsole() {
         onRemove={toggleSelected}
         onClose={() => setMessageModalOpen(false)}
         onSend={(n) => {
-          toast(`Message sent to ${n} candidate${n === 1 ? '' : 's'}`)
+          toast(`Message sent to ${n} applicant${n === 1 ? '' : 's'}`)
           setMessageModalOpen(false)
           clearSelection()
         }}
@@ -862,11 +862,11 @@ const ASSISTANT_STEPS: {
   {
     id: 1,
     label: 'Review',
-    description: 'Rate every candidate — Good, Maybe, or No go. Goal: empty the "To Review" column entirely before moving on.',
+    description: 'Rate every applicant — Good, Maybe, or No go. Goal: empty the "To Review" column entirely before moving on.',
     playlists: [
       { label: 'All "To Review"', filters: { reviewStatus: 'not_reviewed' } },
       { label: 'Top 30% not reviewed', filters: { reviewStatus: 'not_reviewed' }, topTalent: { active: true, pct: 30 } },
-      { label: '⭐ New candidates', filters: { reviewStatus: 'not_reviewed', isNewCandidateFilter: true } },
+      { label: '⭐ New applicants', filters: { reviewStatus: 'not_reviewed', isNewCandidateFilter: true } },
     ],
   },
   {
@@ -1010,7 +1010,7 @@ function FilterBar({
         <FilterDropdown label="Review status" count={filters.reviewStatus != null ? 1 : 0}>
           <div className="flex flex-col gap-0.5 p-1">
             {([
-              { value: null,           label: 'All candidates' },
+              { value: null,           label: 'All applicants' },
               { value: 'reviewed',     label: 'Reviewed — has a note' },
               { value: 'not_reviewed', label: 'Not reviewed — new' },
             ] as const).map(({ value, label }) => (
@@ -1340,7 +1340,7 @@ function SendMessageModal({
               </button>
             </Tag>
           ))}
-          {candidates.length === 0 && <span className="text-sm text-muted">No candidates selected.</span>}
+          {candidates.length === 0 && <span className="text-sm text-muted">No applicants selected.</span>}
         </div>
       </div>
 
@@ -1472,7 +1472,7 @@ function SmartSortInfoTooltip() {
       {visible && (
         <span className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-btn bg-ink px-3 py-2 text-[11px] leading-relaxed text-white shadow-lg">
           <span className="absolute bottom-full right-2 h-0 w-0 border-x-4 border-b-4 border-x-transparent border-b-ink" />
-          Sorts candidates by pipeline stage first (Cast → Callback → New → No go), then by Performance Score within each stage. Activate to surface the most promising profiles instantly.
+          Sorts applicants by pipeline stage first (Cast → Callback → New → No go), then by Performance Score within each stage. Activate to surface the most promising profiles instantly.
         </span>
       )}
     </span>
@@ -1545,7 +1545,7 @@ function ListView({
   if (candidates.length === 0) {
     return (
       <div className="rounded-card border border-dashed border-line py-16 text-center text-sm text-muted">
-        No candidates match these filters.
+        No applicants match these filters.
       </div>
     )
   }
@@ -1749,7 +1749,7 @@ function StatusEditor({ candidate }: { candidate: Candidate }) {
                 key={col}
                 onClick={() => {
                   const r = moveCandidate(candidate.id, col)
-                  if (!r.ok) toast(r.reason ?? "Couldn't move candidate")
+                  if (!r.ok) toast(r.reason ?? "Couldn't move applicant")
                   setOpen(false)
                 }}
                 className={cn(
@@ -1961,7 +1961,7 @@ function WallView({
                 <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
                   <UserRound className="h-12 w-12 text-line" />
                   <p className="text-sm font-semibold text-muted">
-                    {searchQuery ? 'No candidates match your search' : 'No shortlisted candidates available — review submissions first'}
+                    {searchQuery ? 'No applicants match your search' : 'No shortlisted applicants available — review submissions first'}
                   </p>
                 </div>
               )}
@@ -2163,7 +2163,7 @@ function WallView({
             ) && (
               <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
                 <UserRound className="h-12 w-12 text-line" />
-                <p className="text-sm font-semibold text-muted">No candidates match your search</p>
+                <p className="text-sm font-semibold text-muted">No applicants match your search</p>
               </div>
             )}
           </div>
@@ -2271,7 +2271,7 @@ function CandidateCard({
         <div className="relative">
           <Avatar src={candidate.avatar} name={candidate.name} size="sm" />
           {isNew && (
-            <span className="absolute -right-1 -top-1 text-[10px] leading-none" title="New candidate">⭐</span>
+            <span className="absolute -right-1 -top-1 text-[10px] leading-none" title="New applicant">⭐</span>
           )}
         </div>
         <div className="min-w-0 flex-1">
